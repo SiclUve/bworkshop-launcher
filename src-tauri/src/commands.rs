@@ -81,12 +81,11 @@ pub fn get_installs(app: AppHandle) -> installer_bridge::InstallsView {
     installer_bridge::view(&app)
 }
 
-/// Installe ou met à jour. Renvoie l'erreur « UNVERIFIED » si le catalogue ne
-/// publie pas d'empreinte : l'interface demande alors une confirmation.
+/// Installe ou met à jour. Refusé si le catalogue ne publie pas d'empreinte.
 #[tauri::command]
-pub fn install_tool(app: AppHandle, id: String, accept_unverified: bool) -> Result<(), String> {
+pub fn install_tool(app: AppHandle, id: String) -> Result<(), String> {
     installer_bridge::dismiss(&app, &id);
-    installer_bridge::install(&app, &id, accept_unverified)
+    installer_bridge::install(&app, &id)
 }
 
 #[tauri::command]

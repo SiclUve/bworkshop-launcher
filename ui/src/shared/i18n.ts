@@ -45,10 +45,7 @@ const fr = {
   'action.retry': 'Réessayer',
   'action.close': 'Fermer',
   'action.confirmUninstall': 'Oui, désinstaller',
-  'action.installAnyway': 'Installer quand même',
   'confirm.uninstall': 'Désinstaller {name} ? Ses fichiers seront supprimés.',
-  'confirm.unverified':
-    'Ce fichier n’a pas d’empreinte publiée : le launcher ne peut pas vérifier qu’il est identique à celui du site. L’installer quand même ?',
   'phase.downloading': 'Téléchargement…',
   'phase.verifying': 'Vérification…',
   'phase.installing': 'Installation…',
@@ -238,10 +235,7 @@ const en: Record<Key, string> = {
   'action.retry': 'Retry',
   'action.close': 'Close',
   'action.confirmUninstall': 'Yes, uninstall',
-  'action.installAnyway': 'Install anyway',
   'confirm.uninstall': 'Uninstall {name}? Its files will be deleted.',
-  'confirm.unverified':
-    'This file has no published fingerprint: the launcher cannot check it is identical to the one on the site. Install it anyway?',
   'phase.downloading': 'Downloading…',
   'phase.verifying': 'Verifying…',
   'phase.installing': 'Installing…',

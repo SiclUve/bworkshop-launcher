@@ -179,22 +179,18 @@ fn start_job(app: &AppHandle, id: &str, work: impl FnOnce(AppHandle, Arc<AtomicB
         })
 }
 
-/// Erreur renvoyée quand le catalogue ne publie pas d'empreinte : l'interface
-/// demande alors une confirmation explicite, puis rappelle avec `accept_unverified`.
-pub const UNVERIFIED: &str = "UNVERIFIED";
-
-pub fn install(app: &AppHandle, id: &str, accept_unverified: bool) -> Result<(), String> {
+/// Sans empreinte SHA-256 publiée dans le catalogue, rien n'est téléchargé ni lancé :
+/// impossible de vérifier que le fichier reçu est celui annoncé.
+pub fn install(app: &AppHandle, id: &str) -> Result<(), String> {
     let tool = tool_by_id(app, id)?;
     let dl = tool
         .download
         .clone()
         .filter(|_| tool.available)
         .ok_or("Cet outil n'est pas encore téléchargeable")?;
-    if dl.sha256.is_none() && !accept_unverified {
-        return Err(UNVERIFIED.into());
-    }
     if dl.sha256.is_none() {
-        log::warn!("Téléchargement sans empreinte publiée accepté par l'utilisateur : {}", tool.id);
+        log::warn!("Installation refusée, pas d'empreinte publiée : {}", tool.id);
+        return Err("Cet outil n'a pas d'empreinte SHA-256 dans le catalogue : installation refusée par sécurité.".into());
     }
     start_job(app, id, move |app, cancel| run_install(&app, &tool, &cancel))
 }
@@ -202,13 +198,20 @@ pub fn install(app: &AppHandle, id: &str, accept_unverified: bool) -> Result<(),
 fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
     let id = tool.id.as_str();
     let Some(dl) = tool.download.as_ref() else { return };
-    let dir = app.state::<AppState>().paths.downloads_dir();
+    let Some(expected) = dl.sha256.clone() else { return };
+    // Un dossier par outil (l'identifiant n'a que a-z, 0-9 et « - »), vidé avant chaque
+    // téléchargement : rien d'autre que l'installateur vérifié ne s'y trouve.
+    let dir = app.state::<AppState>().paths.downloads_dir().join(id);
     let req = DownloadRequest {
         url: dl.url.clone(),
         dest: dir.join(download::file_name_for(&dl.url, id)),
-        expected_sha256: dl.sha256.clone(),
+        expected_sha256: Some(expected.clone()),
         max_bytes: max_download_size(dl.size_bytes),
     };
+    if let Err(e) = download::clean_tool_dir(&dir, &req.dest) {
+        log::warn!("Dossier de téléchargement de {id} impossible à vider : {e}");
+        return emit_phase(app, "install", id, Phase::Error, Some(format!("dossier de téléchargement impossible à vider : {e}")));
+    }
     log::info!("Téléchargement de {id} ({} octets annoncés)", dl.size_bytes.map(|s| s.to_string()).unwrap_or("?".into()));
 
     // 1. Téléchargement (progression limitée à 5 événements par seconde).
@@ -243,6 +246,23 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
         reveal(app, &file);
         return emit_phase(app, "install", id, Phase::Downloaded, None);
     };
+    // Un installateur se lance toujours sous un nom en .exe.
+    let file = if file.extension().is_some_and(|e| e.eq_ignore_ascii_case("exe")) {
+        file
+    } else {
+        let renamed = dir.join(format!("{id}-setup.exe"));
+        if let Err(e) = std::fs::rename(&file, &renamed) {
+            let _ = std::fs::remove_file(&file);
+            return emit_phase(app, "install", id, Phase::Error, Some(format!("renommage impossible : {e}")));
+        }
+        renamed
+    };
+    // Empreinte recalculée juste avant le lancement, fichier verrouillé en écriture
+    // jusqu'à la fin de l'installateur.
+    let locked = match download::open_verified(&file, &expected) {
+        Ok(f) => f,
+        Err(e) => return emit_phase(app, "install", id, Phase::Error, Some(e.to_string())),
+    };
 
     // 3. Installation silencieuse (une à la fois).
     emit_phase(app, "install", id, Phase::Installing, None);
@@ -251,6 +271,7 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
         let _guard = b.installer_lock.lock();
         runner::install(installer_kind, &file)
     };
+    drop(locked);
     let _ = std::fs::remove_file(&file);
     if let Err(e) = installed {
         log::warn!("Installation de {id} en échec : {e}");

@@ -8,11 +8,9 @@
     favorite: boolean;
     status: InstallStatus;
     activity: ProgressEvent | undefined;
-    /** Le catalogue ne publie pas d'empreinte et l'utilisateur doit confirmer. */
-    needsUnverifiedConfirm: boolean;
     onToggleFavorite: (id: string) => void;
     onOpenLink: (url: string) => void;
-    onInstall: (id: string, acceptUnverified: boolean) => void;
+    onInstall: (id: string) => void;
     onCancel: (id: string) => void;
     onUninstall: (id: string) => void;
     onLaunch: (id: string) => void;
@@ -29,7 +27,6 @@
     favorite,
     status,
     activity,
-    needsUnverifiedConfirm,
     onToggleFavorite,
     onOpenLink,
     onInstall,
@@ -77,7 +74,7 @@
   function retry() {
     if (!activity) return;
     if (activity.operation === 'uninstall') onUninstall(tool.id);
-    else onInstall(tool.id, false);
+    else onInstall(tool.id);
   }
 </script>
 
@@ -149,14 +146,6 @@
           <button class="btn-line small" onclick={() => onDismiss(tool.id)}>{t(lang, 'action.close')}</button>
         </div>
       </div>
-    {:else if needsUnverifiedConfirm}
-      <div class="alert" role="alert">
-        <p>{t(lang, 'confirm.unverified')}</p>
-        <div class="actions">
-          <button class="btn-plank" onclick={() => onInstall(tool.id, true)}>{t(lang, 'action.installAnyway')}</button>
-          <button class="btn-line small" onclick={() => onDismiss(tool.id)}>{t(lang, 'action.cancel')}</button>
-        </div>
-      </div>
     {:else if confirmingUninstall}
       <div class="alert" role="alert">
         <p>{t(lang, 'confirm.uninstall', { name: tool.name })}</p>
@@ -174,12 +163,12 @@
     {:else}
       <div class="actions">
         {#if status.state === 'notInstalled' && tool.available}
-          <button class="btn-plank" onclick={() => onInstall(tool.id, false)}>
+          <button class="btn-plank" onclick={() => onInstall(tool.id)}>
             {t(lang, isInstaller ? 'action.install' : 'action.downloadOpen')}
           </button>
         {/if}
         {#if status.state === 'updateAvailable' && tool.available}
-          <button class="btn-plank" onclick={() => onInstall(tool.id, false)}>{t(lang, 'action.update')}</button>
+          <button class="btn-plank" onclick={() => onInstall(tool.id)}>{t(lang, 'action.update')}</button>
         {/if}
         {#if status.state !== 'notInstalled'}
           <button class={status.state === 'installed' ? 'btn-plank' : 'btn-line small'} onclick={() => onLaunch(tool.id)}>

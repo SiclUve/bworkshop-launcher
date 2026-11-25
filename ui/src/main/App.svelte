@@ -19,7 +19,6 @@
     saveSettings,
     toggleFavorite,
     uninstallTool,
-    UNVERIFIED,
     closeWidget,
     getWidgets,
     getIcons,
@@ -71,7 +70,6 @@
   let error = $state('');
   let installs = $state<InstallsView>({ statuses: {}, activity: {} });
   // Outils dont l'installation attend la confirmation « sans empreinte publiée ».
-  let unverified = $state<string[]>([]);
   let icons = $state<Record<string, string>>({});
   let widgets = $state<WidgetsView>({ open: [], locked: false, hiddenAll: false, toolbarOpen: false });
 
@@ -191,22 +189,12 @@
     };
   });
 
-  async function onInstall(id: string, acceptUnverified: boolean) {
-    try {
-      await installTool(id, acceptUnverified);
-      unverified = unverified.filter((x) => x !== id);
-    } catch (e) {
-      if (String(e) === UNVERIFIED) {
-        if (!unverified.includes(id)) unverified = [...unverified, id];
-      } else {
-        error = String(e);
-      }
-    }
+  async function onInstall(id: string) {
+    await installTool(id).catch((e) => (error = String(e)));
   }
 
   async function onUpdateAll() {
-    // Les outils sans empreinte publiée restent à confirmer un par un.
-    for (const tool of updatable) await onInstall(tool.id, false);
+    for (const tool of updatable) await onInstall(tool.id);
   }
 
   async function onCancel(id: string) {
@@ -222,7 +210,6 @@
   }
 
   async function onDismiss(id: string) {
-    unverified = unverified.filter((x) => x !== id);
     const activity = { ...installs.activity };
     delete activity[id];
     installs = { ...installs, activity };
@@ -459,7 +446,6 @@
               favorite={favorites.includes(tool.id)}
               status={statusOf(tool.id)}
               activity={installs.activity[tool.id]}
-              needsUnverifiedConfirm={unverified.includes(tool.id)}
               {onToggleFavorite}
               {onOpenLink}
               {onInstall}

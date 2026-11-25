@@ -138,12 +138,8 @@ export interface InstallsView {
   activity: Record<string, ProgressEvent>;
 }
 
-/** Erreur renvoyée quand le catalogue ne publie pas d'empreinte SHA-256. */
-export const UNVERIFIED = 'UNVERIFIED';
-
 export const getInstalls = () => invoke<InstallsView>('get_installs');
-export const installTool = (id: string, acceptUnverified = false) =>
-  invoke<void>('install_tool', { id, acceptUnverified });
+export const installTool = (id: string) => invoke<void>('install_tool', { id });
 export const cancelInstall = (id: string) => invoke<void>('cancel_install', { id });
 export const dismissInstallError = (id: string) => invoke<void>('dismiss_install_error', { id });
 export const uninstallTool = (id: string) => invoke<void>('uninstall_tool', { id });

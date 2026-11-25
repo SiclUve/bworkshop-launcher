@@ -208,6 +208,62 @@ pub fn download(
     finish(req, &part, to_hex(&hasher.finalize()))
 }
 
+/// Vide le dossier propre à un outil avant un téléchargement, sauf la partie déjà
+/// téléchargée de `keep` (reprise). Aucun fichier déposé à côté de l'installateur
+/// (une DLL par exemple) ne peut ainsi être chargé par lui.
+pub fn clean_tool_dir(dir: &Path, keep: &Path) -> io::Result<()> {
+    let keep_part = sidecar(keep, ".part");
+    let keep_meta = sidecar(keep, ".part.meta");
+    let entries = match fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(e),
+    };
+    for entry in entries {
+        let path = entry?.path();
+        if path == keep_part || path == keep_meta {
+            continue;
+        }
+        if path.is_dir() {
+            fs::remove_dir_all(&path)?;
+        } else {
+            fs::remove_file(&path)?;
+        }
+    }
+    Ok(())
+}
+
+/// Ouvre le fichier en interdisant toute écriture tant que le résultat est gardé,
+/// puis recalcule son empreinte. À garder ouvert jusqu'à la fin de l'installateur :
+/// le fichier lancé est forcément celui qui a été vérifié.
+pub fn open_verified(path: &Path, expected: &str) -> Result<File, DownloadError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        options.share_mode(0x1); // FILE_SHARE_READ : lecture seule pour les autres
+    }
+    let mut file = options.open(path)?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    let actual = to_hex(&hasher.finalize());
+    if !hash::same_digest(expected, &actual) {
+        drop(file);
+        let _ = fs::remove_file(path);
+        log::warn!("Empreinte changée avant le lancement de {} : fichier supprimé", path.display());
+        return Err(DownloadError::HashMismatch { expected: expected.to_string(), actual });
+    }
+    Ok(file)
+}
+
 /// Nom de fichier sûr tiré de l'adresse (dernier segment), sinon `<id>.exe`.
 pub fn file_name_for(url: &str, id: &str) -> String {
     let last = url
@@ -230,6 +286,36 @@ pub fn file_name_for(url: &str, id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clean_tool_dir_keeps_only_resume_part() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("a.exe");
+        fs::write(dir.path().join("a.exe.part"), b"x").unwrap();
+        fs::write(dir.path().join("a.exe.part.meta"), b"x").unwrap();
+        fs::write(dir.path().join("version.dll"), b"x").unwrap();
+        fs::create_dir(dir.path().join("sub")).unwrap();
+        clean_tool_dir(dir.path(), &dest).unwrap();
+        let mut left: Vec<_> = fs::read_dir(dir.path()).unwrap().map(|e| e.unwrap().file_name()).collect();
+        left.sort();
+        assert_eq!(left, ["a.exe.part", "a.exe.part.meta"]);
+        clean_tool_dir(&dir.path().join("absent"), &dest).unwrap();
+    }
+
+    #[test]
+    fn open_verified_checks_and_locks() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = dir.path().join("a.exe");
+        fs::write(&f, b"abc").unwrap();
+        let good = hash::sha256_hex(b"abc");
+        let held = open_verified(&f, &good).unwrap();
+        #[cfg(windows)]
+        assert!(OpenOptions::new().write(true).open(&f).is_err(), "écriture possible pendant la vérification");
+        drop(held);
+        fs::write(&f, b"abd").unwrap();
+        assert!(matches!(open_verified(&f, &good), Err(DownloadError::HashMismatch { .. })));
+        assert!(!f.exists());
+    }
     use std::io::Cursor;
 
     fn req(dir: &Path, sha: Option<String>, max: u64) -> DownloadRequest {

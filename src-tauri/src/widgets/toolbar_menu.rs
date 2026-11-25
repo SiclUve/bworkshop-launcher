@@ -152,18 +152,7 @@ pub fn on_event(app: &AppHandle, event: &MenuEvent) {
             state::show_main(app);
             Ok(())
         }
-        "update" => match installer_bridge::install(app, id, false) {
-            Ok(()) => {
-                notice(app, tr(lang, "Mise à jour en cours…", "Updating…"));
-                Ok(())
-            }
-            // Sans empreinte publiée : la confirmation se fait dans la fenêtre principale.
-            Err(e) if e == installer_bridge::UNVERIFIED => {
-                state::show_main(app);
-                Err(tr(lang, "Cette mise à jour demande ta confirmation dans le launcher.", "This update needs your confirmation in the launcher.").into())
-            }
-            Err(e) => Err(e),
-        },
+        "update" => installer_bridge::install(app, id).map(|()| notice(app, tr(lang, "Mise à jour en cours…", "Updating…"))),
         "uninstall" => {
             confirm_uninstall(app, id);
             Ok(())
