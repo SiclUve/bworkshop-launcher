@@ -50,17 +50,40 @@ try {
     $extra = Join-Path $env:TEMP 'bworkshop-updater.json'
     $extraConf = @{ bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = (Get-Content $pubFile -Raw).Trim() } } }
     [IO.File]::WriteAllText($extra, ($extraConf | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+    # Aucun chemin de ce PC (donc aucun nom d'utilisateur Windows) dans l'exécutable :
+    # - construction depuis un lecteur virtuel (subst) qui pointe sur le dépôt ;
+    # - chemins Rust réécrits, et seul le nom du fichier .pdb est gardé ;
+    # - chemins des sources C (aws-lc) raccourcis par le compilateur.
+    $lettre = @('R','S','T','U','V','W','X','Y') | Where-Object { -not (Test-Path "${_}:\") } | Select-Object -First 1
+    if (-not $lettre) { throw 'Aucune lettre de lecteur libre pour la construction.' }
+    subst "${lettre}:" $root
+    if ($LASTEXITCODE -ne 0) { throw 'Lecteur virtuel impossible à créer.' }
+    $script:lecteur = "${lettre}:"
+    Push-Location "${lettre}:\"
+    $script:pousse = $true
+    $sep = [char]0x1f
+    $env:CARGO_ENCODED_RUSTFLAGS = "--remap-path-prefix=$env:USERPROFILE=~$sep--remap-path-prefix=${lettre}:\=.$sep-Clink-arg=/PDBALTPATH:%_PDB%"
+    $env:CFLAGS = "/d1trimfile:$env:USERPROFILE\"
+    $env:CXXFLAGS = $env:CFLAGS
     npm run tauri build -- --config $extra
     if ($LASTEXITCODE -ne 0) { throw 'La construction a échoué.' }
 } finally {
+    if ($script:pousse) { Pop-Location }
     Pop-Location
     Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
     Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+    Remove-Item Env:CARGO_ENCODED_RUSTFLAGS, Env:CFLAGS, Env:CXXFLAGS -ErrorAction SilentlyContinue
+    if ($script:lecteur) { subst $script:lecteur /D }
 }
 
 $nsis = Join-Path $root 'target\release\bundle\nsis'
 $setup = Get-ChildItem $nsis -Filter "*_${version}_*-setup.exe" | Select-Object -First 1
 if (-not $setup) { throw "Installateur introuvable dans $nsis" }
+# Contrôle : le nom d'utilisateur Windows ne doit pas apparaître dans l'exécutable.
+$exe = Join-Path $root 'targeteleaseworkshop-launcher.exe'
+if ([Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe)) -match [regex]::Escape($env:USERNAME)) {
+    throw "Le nom d'utilisateur Windows apparaît encore dans $exe : ne pas publier."
+}
 $sig = Get-Content "$($setup.FullName).sig" -Raw
 $name = $setup.Name -replace ' ', '.'   # GitHub remplace les espaces par des points
 $latest = [ordered]@{
