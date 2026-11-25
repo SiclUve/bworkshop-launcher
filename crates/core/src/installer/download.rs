@@ -43,7 +43,8 @@ pub struct DownloadRequest {
     pub url: String,
     /// Fichier final (le temporaire est `<dest>.part`).
     pub dest: PathBuf,
-    pub expected_sha256: Option<String>,
+    /// Empreinte publiée, obligatoire : aucun fichier n'est gardé sans vérification.
+    pub expected_sha256: String,
     pub max_bytes: u64,
 }
 
@@ -109,13 +110,11 @@ pub fn copy_stream(
 /// Termine : compare l'empreinte, puis renomme `.part` en fichier final.
 pub fn finish(req: &DownloadRequest, part: &Path, digest: String) -> Result<Downloaded, DownloadError> {
     let meta = sidecar(&req.dest, ".part.meta");
-    if let Some(expected) = &req.expected_sha256 {
-        if !hash::same_digest(expected, &digest) {
-            let _ = fs::remove_file(part);
-            let _ = fs::remove_file(&meta);
-            log::warn!("Empreinte SHA-256 différente pour {} : fichier supprimé", req.dest.display());
-            return Err(DownloadError::HashMismatch { expected: expected.clone(), actual: digest });
-        }
+    if !hash::same_digest(&req.expected_sha256, &digest) {
+        let _ = fs::remove_file(part);
+        let _ = fs::remove_file(&meta);
+        log::warn!("Empreinte SHA-256 différente pour {} : fichier supprimé", req.dest.display());
+        return Err(DownloadError::HashMismatch { expected: req.expected_sha256.clone(), actual: digest });
     }
     if req.dest.exists() {
         fs::remove_file(&req.dest)?;
@@ -139,7 +138,7 @@ pub fn download(
     let part = sidecar(&req.dest, ".part");
     let meta = sidecar(&req.dest, ".part.meta");
     // La reprise n'est possible que pour le même fichier (même adresse, même empreinte).
-    let identity = format!("{}\n{}", req.url, req.expected_sha256.as_deref().unwrap_or("-"));
+    let identity = format!("{}\n{}", req.url, req.expected_sha256);
 
     let mut hasher = Sha256::new();
     let mut existing = 0u64;
@@ -318,7 +317,7 @@ mod tests {
     }
     use std::io::Cursor;
 
-    fn req(dir: &Path, sha: Option<String>, max: u64) -> DownloadRequest {
+    fn req(dir: &Path, sha: String, max: u64) -> DownloadRequest {
         DownloadRequest {
             url: "https://bworkshop.app/a.exe".into(),
             dest: dir.join("a.exe"),
@@ -343,7 +342,7 @@ mod tests {
     fn empreinte_correcte_acceptee() {
         let dir = tempfile::tempdir().unwrap();
         let content = b"installateur".repeat(10_000);
-        let r = req(dir.path(), Some(hash::sha256_hex(&content).to_uppercase()), 1 << 30);
+        let r = req(dir.path(), hash::sha256_hex(&content).to_uppercase(), 1 << 30);
         let d = simulate(&r, &content, false).unwrap();
         assert_eq!(fs::read(&d.path).unwrap(), content);
         assert!(!sidecar(&r.dest, ".part").exists());
@@ -352,7 +351,7 @@ mod tests {
     #[test]
     fn fichier_modifie_refuse_et_supprime() {
         let dir = tempfile::tempdir().unwrap();
-        let r = req(dir.path(), Some(hash::sha256_hex(b"original")), 1 << 30);
+        let r = req(dir.path(), hash::sha256_hex(b"original"), 1 << 30);
         let err = simulate(&r, b"original modifie", false).unwrap_err();
         assert!(matches!(err, DownloadError::HashMismatch { .. }));
         assert!(!r.dest.exists());
@@ -362,7 +361,7 @@ mod tests {
     #[test]
     fn trop_gros_refuse() {
         let dir = tempfile::tempdir().unwrap();
-        let r = req(dir.path(), None, 100);
+        let r = req(dir.path(), hash::sha256_hex(&[0u8; 100]), 100);
         assert!(matches!(simulate(&r, &[0u8; 101], false), Err(DownloadError::TooLarge { max: 100 })));
         assert!(simulate(&r, &[0u8; 100], false).is_ok());
     }
@@ -370,7 +369,7 @@ mod tests {
     #[test]
     fn annulation() {
         let dir = tempfile::tempdir().unwrap();
-        let r = req(dir.path(), None, 1 << 30);
+        let r = req(dir.path(), hash::sha256_hex(b"x"), 1 << 30);
         assert!(matches!(simulate(&r, b"x", true), Err(DownloadError::Cancelled)));
         assert!(!r.dest.exists());
     }
@@ -379,7 +378,7 @@ mod tests {
     fn reprise_empreinte_sur_les_deux_parties() {
         let dir = tempfile::tempdir().unwrap();
         let content = b"0123456789".repeat(1000);
-        let r = req(dir.path(), Some(hash::sha256_hex(&content)), 1 << 30);
+        let r = req(dir.path(), hash::sha256_hex(&content), 1 << 30);
         let part = sidecar(&r.dest, ".part");
         fs::write(&part, &content[..4000]).unwrap();
         let mut hasher = Sha256::new();
@@ -396,7 +395,7 @@ mod tests {
     #[test]
     fn adresse_hors_liste_refusee_avant_tout_acces() {
         let dir = tempfile::tempdir().unwrap();
-        let mut r = req(dir.path(), None, 10);
+        let mut r = req(dir.path(), "0".repeat(64), 10);
         r.url = "https://evil.example/a.exe".into();
         let client = download_client().unwrap();
         let err = download(&client, &r, &AtomicBool::new(false), |_| {}).unwrap_err();

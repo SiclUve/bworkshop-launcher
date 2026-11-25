@@ -202,6 +202,12 @@ fn web_url_for(id: &str, kinds: &[String], raw: Option<String>, fallback: Option
 
 /// Version overlay : champ `overlayUrl` du catalogue (domaine autorisé), sinon déduite de la
 /// version web (voir `web_urls::OVERLAY_QUERIES`).
+/// Installable depuis le launcher : un lien accepté **et** une empreinte SHA-256 (sans elle,
+/// l'installation est toujours refusée : pas de bouton qui échouerait à coup sûr).
+fn installable(download: &Option<Download>) -> bool {
+    download.as_ref().is_some_and(|d| d.sha256.is_some())
+}
+
 fn overlay_url_for(id: &str, raw: Option<String>, web_url: Option<&str>) -> Option<String> {
     optional_link(id, "overlayUrl", raw, icon_url).or_else(|| web_url.and_then(|w| web_urls::overlay_for(id, w)))
 }
@@ -212,7 +218,7 @@ impl RawOfficialApp {
         let id = self.id;
         let version = self.version.as_deref().map(check_version).transpose()?;
         let download = self.download.and_then(|d| build_download(&id, Some(d.url), d.size_bytes, d.sha256));
-        let available = download.is_some() && self.status != Status::InDevelopment;
+        let available = installable(&download) && self.status != Status::InDevelopment;
         let web_url = web_url_for(&id, &self.kinds, self.web_url, web_urls::official_fallback(&id));
         let overlay_url = web_url.as_deref().and_then(|w| overlay_url_for(&id, self.overlay_url, Some(w)));
         Ok(Tool {
@@ -270,7 +276,7 @@ impl RawCommunityPlugin {
             order: COMMUNITY_ORDER_BASE + index as i64,
             tagline: None,
             description: None,
-            available: download.is_some(),
+            available: installable(&download),
             download,
             id,
         })
@@ -484,5 +490,18 @@ mod tests {
             assert!(p.tools[0].download.is_none() && !p.tools[0].available, "{url}");
             assert!(p.tools[0].page_url.is_some());
         }
+    }
+
+    #[test]
+    fn sans_empreinte_pas_de_bouton_installer() {
+        let p = parse_community(&serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+            "slug": "sans-sha", "name": "Sans SHA", "version": "1.0.0", "category": "utilitaire",
+            "kinds": ["application"], "platforms": ["windows"], "author": "X",
+            "downloadUrl": "https://github.com/SiclUve/x/releases/download/v1/x.exe", "pageUrl": "/plugins/sans-sha/"
+        }]})).unwrap())
+        .unwrap();
+        // Le lien est gardé (fiche), mais l'installation serait refusée : pas de bouton.
+        assert!(p.tools[0].download.is_some());
+        assert!(!p.tools[0].available);
     }
 }

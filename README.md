@@ -130,15 +130,20 @@ se fermer, comme un clic sur sa croix (`WM_CLOSE`, envoyé par `PostMessageW`).
   dans un groupe de processus Windows (« job », `CreateJobObjectW` puis
   `AssignProcessToJobObject` avec la poignée rendue au lancement). Les processus que ce
   logiciel ouvre lui-même y entrent automatiquement (certains outils démarrent en deux
-  processus), et aucun autre. Dofus est lancé par l'Ankama Launcher : il n'est jamais dans
-  ce groupe. Quitter le launcher ne ferme pas les logiciels du groupe.
+  processus), et aucun autre. Quitter le launcher ne ferme pas les logiciels du groupe.
+- Garde-fou : si un outil démarrait lui-même l'Ankama Launcher (et donc Dofus), ces
+  processus entreraient dans son groupe. Tout processus du groupe, autre que celui lancé,
+  qui a une fenêtre au titre de Dofus ou d'Ankama est donc écarté (titre lu avec
+  `GetWindowTextW`, sans poignée) : il ne reçoit jamais `WM_CLOSE`, et l'arrêt forcé ne vise
+  alors que le processus lancé, plus le groupe.
 - Seules ses fenêtres principales (visibles, sans propriétaire) reçoivent le message,
   trouvées avec `EnumWindows` et `GetWindowThreadProcessId`.
 - Le titre des fenêtres n'est pas utilisé pour choisir la cible (un outil peut
   s'appeler « Dofus Color Picker ») : seule l'appartenance au groupe compte.
 - Aucun clic, aucune touche : le logiciel peut proposer d'enregistrer ou refuser de se fermer.
 - S'il tourne encore 3 secondes plus tard (certains se cachent près de l'horloge au
-  lieu de quitter), sa tuile passe en rouge. Un nouveau clic l'arrête de force
+  lieu de quitter), sa tuile passe en rouge pendant une minute. Après, un clic redemande
+  une fermeture normale. Un nouveau clic pendant cette minute l'arrête de force
   (`TerminateJobObject` sur son groupe), **seulement pour ce que le launcher a lui-même
   démarré** : aucune poignée n'est ouverte sur un autre processus. Ce qui n'était pas enregistré dans ce logiciel est alors perdu.
 

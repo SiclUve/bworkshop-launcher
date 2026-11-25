@@ -205,7 +205,7 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
     let req = DownloadRequest {
         url: dl.url.clone(),
         dest: dir.join(download::file_name_for(&dl.url, id)),
-        expected_sha256: Some(expected.clone()),
+        expected_sha256: expected.clone(),
         max_bytes: max_download_size(dl.size_bytes),
     };
     if let Err(e) = download::clean_tool_dir(&dir, &req.dest) {
@@ -348,8 +348,11 @@ pub fn launch_tool(app: &AppHandle, id: &str) -> Result<(), String> {
     let entry = entry_for(&entries, &tool).ok_or("Outil non installé")?;
     let declared = known_apps::find(id).and_then(|a| a.main_exe);
     let exe: PathBuf = launch::main_exe(entry, declared).ok_or("Exécutable principal inconnu")?;
+    if app.state::<crate::running::Running>().is_running(id) {
+        return Err("Cet outil est déjà lancé.".into());
+    }
     let child = launch::launch(&exe).map_err(|e| format!("Impossible de lancer l'outil : {e}"))?;
-    crate::running::track(app, id, child);
+    crate::running::track(app, id, child)?;
     log::info!("{id} lancé");
     Ok(())
 }
@@ -359,9 +362,12 @@ pub fn is_installed(app: &AppHandle, id: &str) -> bool {
     tool_by_id(app, id).is_ok_and(|t| entry_for(&registry_entries(), &t).is_some())
 }
 
-/// Outil installé dont une version plus récente est publiée.
+/// Outil installé dont une version plus récente est publiée et installable (avec empreinte).
 pub fn has_update(app: &AppHandle, id: &str) -> bool {
     let Ok(tool) = tool_by_id(app, id) else { return false };
+    if !tool.available {
+        return false;
+    }
     let entries = registry_entries();
     matches!(status_of(entry_for(&entries, &tool), tool.version.as_deref()), InstallStatus::UpdateAvailable { .. })
 }

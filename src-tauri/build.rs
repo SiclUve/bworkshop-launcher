@@ -48,7 +48,6 @@ fn main() {
                 "set_toolbar_open",
                 "toolbar_fit",
                 "toolbar_drag",
-                "toolbar_close",
                 "toolbar_open_main",
                 "toolbar_main_visible",
                 "toolbar_menu",

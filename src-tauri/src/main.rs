@@ -102,7 +102,6 @@ fn main() {
             widgets::commands::set_toolbar_open,
             widgets::commands::toolbar_fit,
             widgets::commands::toolbar_drag,
-            widgets::commands::toolbar_close,
             widgets::commands::toolbar_open_main,
             widgets::commands::toolbar_main_visible,
             widgets::commands::toolbar_menu,
@@ -153,7 +152,12 @@ fn main() {
             // près de l'horloge : seul « Quitter » le ferme (voir `ExitRequested` plus bas).
             if window.label() == state::MAIN_LABEL {
                 match event {
-                    WindowEvent::Destroyed => state::emit_main_visible(window.app_handle()),
+                    WindowEvent::Destroyed => {
+                        // Fenêtre fermée pendant la saisie d'un raccourci : la page n'a pas pu
+                        // lever la suspension, les raccourcis resteraient coupés.
+                        hotkeys::resume_if_suspended(window.app_handle());
+                        state::emit_main_visible(window.app_handle());
+                    }
                     // Réduite ou restaurée : la tuile « + » / « − » suit.
                     WindowEvent::Resized(_) | WindowEvent::Focused(_) => state::emit_main_visible(window.app_handle()),
                     _ => {}

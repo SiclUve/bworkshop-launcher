@@ -246,12 +246,12 @@ fn on_foreground_checked(hwnd: HWND, fresh: bool) {
     let mut pid = 0u32;
     unsafe { GetWindowThreadProcessId(hwnd, Some(&mut pid)) };
     let own = pid == std::process::id();
-    // Un outil démarré par le launcher peut avoir « Dofus » dans son titre : ce n'est pas le jeu.
-    let launched = !own && app.state::<Running>().owns_pid(pid);
     let pattern = match STATE.lock() {
         Ok(st) if st.enabled => st.pattern.clone(),
         _ => return,
     };
+    // Un outil démarré par le launcher peut avoir « Dofus » dans son titre : ce n'est pas le jeu.
+    let launched = !own && app.state::<Running>().owns_pid(pid, &pattern);
     let is_dofus = !own && !launched && title_matches(&title_of(hwnd), &pattern);
     if fresh {
         // Toute nouvelle fenêtre au premier plan annule les relectures en attente.

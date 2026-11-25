@@ -4,8 +4,13 @@ use super::kind::{contains, read_head};
 use std::io;
 use std::path::Path;
 
+/// `/CURRENTUSER` : installation pour l'utilisateur seul, sans droits administrateur, quand
+/// l'installateur laisse le choix (`PrivilegesRequiredOverridesAllowed`). Un installateur Inno
+/// qui exige les droits administrateur se relance lui-même avec élévation : Windows affiche
+/// alors sa fenêtre UAC malgré `/VERYSILENT`. Le launcher ne la contourne pas : refusée, elle
+/// arrête l'installation et l'erreur est affichée.
 pub const SILENT_INSTALL_ARGS: &[&str] =
-    &["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/CLOSEAPPLICATIONS"];
+    &["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-", "/CLOSEAPPLICATIONS", "/CURRENTUSER"];
 pub const SILENT_UNINSTALL_ARGS: &[&str] = &["/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART"];
 
 /// Signature de la table du chargeur Inno (absente des désinstalleurs et des exe ordinaires).

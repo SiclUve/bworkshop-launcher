@@ -191,13 +191,6 @@ pub fn toolbar_drag(webview: Webview) -> Result<(), String> {
     webview.window().start_dragging().map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn toolbar_close(app: AppHandle, widgets: State<'_, Widgets>, webview: Webview) -> Result<(), String> {
-    from_toolbar(&webview)?;
-    widgets.close_toolbar(&app);
-    Ok(())
-}
-
 /// Tuile « + » / « − » : ouvre ou cache la fenêtre principale. Renvoie son nouvel état.
 #[tauri::command]
 pub fn toolbar_open_main(app: AppHandle, webview: Webview) -> Result<bool, String> {

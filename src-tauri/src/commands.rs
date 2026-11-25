@@ -118,8 +118,8 @@ pub fn get_running(running: State<'_, crate::running::Running>) -> crate::runnin
 
 /// Un logiciel lancé par le launcher a-t-il encore une fenêtre visible ?
 #[tauri::command]
-pub fn tool_has_window(running: State<'_, crate::running::Running>, id: String) -> bool {
-    running.has_window(&id)
+pub fn tool_has_window(app: AppHandle, running: State<'_, crate::running::Running>, id: String) -> bool {
+    running.has_window(&id, &crate::running::game_pattern(&app))
 }
 
 /// Ferme poliment un logiciel lancé par le launcher (jamais Dofus).

@@ -244,8 +244,10 @@ pub fn forget_size_rules(hwnd: HWND) {
 // ---------- WebView2 du contenu distant ----------
 
 /// Refuse toute demande d'autorisation de la page (micro, caméra, position,
-/// notifications, presse-papiers…).
-pub fn deny_permissions(webview: &Webview, label: String) {
+/// notifications, presse-papiers…), **puis** charge `url` : la page ne peut
+/// rien demander avant que le refus soit en place. Si le refus ne peut pas être posé, la page
+/// n'est pas chargée (la vue reste vide).
+pub fn deny_permissions_then_open(webview: &Webview, label: String, url: String) {
     let result = webview.with_webview(move |pw| unsafe {
         use webview2_com::Microsoft::Web::WebView2::Win32::{
             ICoreWebView2PermissionRequestedEventArgs, COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_STATE_DENY,
@@ -272,7 +274,12 @@ pub fn deny_permissions(webview: &Webview, label: String) {
         ));
         let mut token = 0i64;
         if let Err(e) = core.add_PermissionRequested(&handler, &mut token) {
-            log::error!("Widget {label} : impossible de bloquer les autorisations ({e})");
+            log::error!("Widget {label} : impossible de bloquer les autorisations, page non chargée ({e})");
+            return;
+        }
+        let wide: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
+        if let Err(e) = core.Navigate(windows::core::PCWSTR(wide.as_ptr())) {
+            log::error!("Widget {label} : chargement de la page impossible ({e})");
         }
     });
     if let Err(e) = result {

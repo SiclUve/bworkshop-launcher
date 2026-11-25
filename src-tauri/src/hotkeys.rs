@@ -97,6 +97,14 @@ pub fn set_suspended(app: &AppHandle, suspended: bool) {
     reload(app);
 }
 
+/// Lève la suspension si elle est encore active (fenêtre principale détruite pendant une saisie).
+pub fn resume_if_suspended(app: &AppHandle) {
+    if app.state::<Hotkeys>().suspended.swap(false, Ordering::SeqCst) {
+        log::info!("Raccourcis réactivés : la fenêtre a été fermée pendant une saisie");
+        reload(app);
+    }
+}
+
 fn apply(app: &AppHandle, registered: &mut Vec<(i32, Target)>) {
     for (id, _) in registered.drain(..) {
         let _ = unsafe { UnregisterHotKey(None, id) };

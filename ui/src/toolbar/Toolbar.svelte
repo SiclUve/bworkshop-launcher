@@ -51,9 +51,12 @@
   let running = $state<string[]>([]);
   let starting = $state<string[]>([]);
   // Logiciels qui tournent encore 3 s après la fermeture polie : tuile rouge, prochain clic = arrêt forcé.
+  // Au bout de 60 s (comme côté Rust), la tuile redevient normale : un clic redemande une fermeture polie
+  // (le logiciel a pu proposer « Enregistrer ? » et l'utilisateur annuler).
   let stubborn = $state<string[]>([]);
   let mainVisible = $state(false);
   const FORCE_AFTER_MS = 3000;
+  const FORCE_WINDOW_MS = 60000;
   let lang = $state<Lang>('fr');
 
   // Message court sous les tuiles (erreur ou conseil), effacé tout seul.
@@ -263,6 +266,7 @@
         await forceCloseTool(id);
       } else if (running.includes(id)) {
         await closeTool(id);
+        setTimeout(() => (stubborn = stubborn.filter((x) => x !== id)), FORCE_WINDOW_MS);
         setTimeout(async () => {
           if (!running.includes(id) || stubborn.includes(id)) return;
           stubborn = [...stubborn, id];

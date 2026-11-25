@@ -331,7 +331,8 @@ impl Widgets {
             .build()
             .map_err(|e| format!("Fenêtre du widget non créée : {e}"))?;
 
-        let content = self.content_builder(app, id, url, host);
+        let first_page = url.to_string();
+        let content = self.content_builder(app, id, host);
         let bar = WebviewBuilder::new(bar_label(id), WebviewUrl::App("widgetbar.html".into()))
             .additional_browser_args(state::BROWSER_ARGS)
             .focused(false)
@@ -349,8 +350,9 @@ impl Widgets {
         if let Ok(mut live) = self.live.lock() {
             live.insert(id.to_string(), Live { name: tool.name.clone(), hwnd: hwnd.0 as isize, settings_open: false });
         }
-        if let Some(web) = app.get_webview(&web_label(id)) {
-            native::deny_permissions(&web, web_label(id));
+        match app.get_webview(&web_label(id)) {
+            Some(web) => native::deny_permissions_then_open(&web, web_label(id), first_page),
+            None => log::error!("Widget {id} : vue introuvable, page non chargée"),
         }
 
         let app2 = app.clone();
@@ -389,12 +391,16 @@ impl Widgets {
     }
 
     /// Vue de la page distante, avec toutes ses restrictions.
-    fn content_builder(&self, app: &AppHandle, id: &str, url: Url, host: String) -> WebviewBuilder<tauri::Wry> {
+    /// Vue de la page de l'outil. Elle démarre sur une page vide : la vraie page n'est chargée
+    /// qu'une fois le refus des autorisations (micro, caméra, position…) en place
+    /// (voir `native::deny_permissions_then_open`).
+    fn content_builder(&self, app: &AppHandle, id: &str, host: String) -> WebviewBuilder<tauri::Wry> {
+        let blank = Url::parse("about:blank").expect("adresse fixe valide");
         let last_external = Arc::new(Mutex::new(None::<Instant>));
         let (app_nav, id_nav, last_nav, host_nav) = (app.clone(), id.to_string(), last_external.clone(), host.clone());
         let (app_new, id_new) = (app.clone(), id.to_string());
         let id_dl = id.to_string();
-        WebviewBuilder::new(web_label(id), WebviewUrl::External(url))
+        WebviewBuilder::new(web_label(id), WebviewUrl::External(blank))
             .additional_browser_args(state::BROWSER_ARGS)
             .focused(false)
             .background_color(BACKGROUND)

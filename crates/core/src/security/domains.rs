@@ -109,7 +109,7 @@ pub fn widget_navigation_allowed(url: &Url, tool_host: &str) -> bool {
     if url.as_str() == "about:blank" {
         return true;
     }
-    if url.scheme() != "https" || url.port().is_some() || !url.username().is_empty() {
+    if url.scheme() != "https" || url.port().is_some() || !url.username().is_empty() || url.password().is_some() {
         return false;
     }
     let bare = |h: &str| h.strip_prefix("www.").unwrap_or(h).to_ascii_lowercase();
@@ -127,6 +127,8 @@ mod widget_tests {
         assert!(ok("https://www.bworkshop.app/autre"));
         assert!(ok("about:blank"));
         assert!(!ok("http://bworkshop.app/"));
+        assert!(!ok("https://:x@bworkshop.app/"));
+        assert!(!ok("https://u@bworkshop.app/"));
         assert!(!ok("https://bworkshop.app.evil.com/"));
         assert!(!ok("https://evil.com/?bworkshop.app"));
         assert!(!ok("https://user@bworkshop.app/"));
