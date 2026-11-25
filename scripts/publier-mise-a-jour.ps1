@@ -48,18 +48,22 @@ try {
     # vérifiée par Tauri avec la clé publique (vide dans tauri.conf.json : le launcher, lui,
     # la lit dans updater-key.pub).
     $extra = Join-Path $env:TEMP 'bworkshop-updater.json'
-    $extraConf = @{ bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = (Get-Content $pubFile -Raw).Trim() } } }
+    $extraConf = @{ build = @{ beforeBuildCommand = '' }; bundle = @{ createUpdaterArtifacts = $true }; plugins = @{ updater = @{ pubkey = (Get-Content $pubFile -Raw).Trim() } } }
     [IO.File]::WriteAllText($extra, ($extraConf | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+    # Interface construite ici, depuis le vrai dossier (Vite ne fonctionne pas depuis un lecteur virtuel).
+    npm run build
+    if ($LASTEXITCODE -ne 0) { throw "La construction de l'interface a échoué." }
     # Aucun chemin de ce PC (donc aucun nom d'utilisateur Windows) dans l'exécutable :
     # - construction depuis un lecteur virtuel (subst) qui pointe sur le dépôt ;
     # - chemins Rust réécrits, et seul le nom du fichier .pdb est gardé ;
     # - chemins des sources C (aws-lc) raccourcis par le compilateur.
     $lettre = @('R','S','T','U','V','W','X','Y') | Where-Object { -not (Test-Path "${_}:\") } | Select-Object -First 1
     if (-not $lettre) { throw 'Aucune lettre de lecteur libre pour la construction.' }
-    subst "${lettre}:" $root
+    # Le lecteur pointe sur le dossier PARENT : pas de nom d'utilisateur dans le chemin.
+    subst "${lettre}:" (Split-Path -Parent $root)
     if ($LASTEXITCODE -ne 0) { throw 'Lecteur virtuel impossible à créer.' }
     $script:lecteur = "${lettre}:"
-    Push-Location "${lettre}:\"
+    Push-Location "${lettre}:\$(Split-Path -Leaf $root)"
     $script:pousse = $true
     $sep = [char]0x1f
     $env:CARGO_ENCODED_RUSTFLAGS = "--remap-path-prefix=$env:USERPROFILE=~$sep--remap-path-prefix=${lettre}:\=.$sep-Clink-arg=/PDBALTPATH:%_PDB%"
@@ -80,7 +84,7 @@ $nsis = Join-Path $root 'target\release\bundle\nsis'
 $setup = Get-ChildItem $nsis -Filter "*_${version}_*-setup.exe" | Select-Object -First 1
 if (-not $setup) { throw "Installateur introuvable dans $nsis" }
 # Contrôle : le nom d'utilisateur Windows ne doit pas apparaître dans l'exécutable.
-$exe = Join-Path $root 'targeteleaseworkshop-launcher.exe'
+$exe = Join-Path $root 'target\release\bworkshop-launcher.exe'
 if ([Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($exe)) -match [regex]::Escape($env:USERNAME)) {
     throw "Le nom d'utilisateur Windows apparaît encore dans $exe : ne pas publier."
 }
