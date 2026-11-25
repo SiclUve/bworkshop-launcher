@@ -1,6 +1,10 @@
 //! Liste des domaines autorisés pour les téléchargements et les catalogues.
 //!
-//! - Autorisés : `bworkshop.app`, `github.com/SiclUve/…`, `github.com/rubiconte/…`.
+//! - Autorisés : `bworkshop.app`, `github.com/SiclUve/…`, `github.com/rubiconte/…`,
+//!   et le fichier d'une release GitHub de n'importe quel auteur
+//!   (`github.com/<auteur>/<projet>/releases/download/<version>/<fichier>`) : les outils
+//!   de la communauté s'installent sans mise à jour du launcher. Le fichier reste
+//!   vérifié par son empreinte SHA-256, obligatoire pour toute installation.
 //! - `objects.githubusercontent.com` et `release-assets.githubusercontent.com` :
 //!   acceptés **seulement** comme destination d'une redirection depuis un lien autorisé.
 //! - HTTPS obligatoire, port par défaut seulement, pas d'identifiants dans l'adresse.
@@ -58,8 +62,26 @@ pub fn check_initial(url: &Url) -> Result<(), DomainError> {
         if ALLOWED_GITHUB_OWNERS.iter().any(|o| o.eq_ignore_ascii_case(owner)) {
             return Ok(());
         }
+        if is_release_asset(url) {
+            return Ok(());
+        }
     }
     Err(DomainError::NotAllowed(short(url)))
+}
+
+/// `/<auteur>/<projet>/releases/download/<version>/<fichier>`, rien de plus ni de moins.
+fn is_release_asset(url: &Url) -> bool {
+    let Some(parts) = url.path_segments().map(|s| s.collect::<Vec<_>>()) else { return false };
+    let name_ok = |p: &str| !p.is_empty() && p.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'));
+    parts.len() == 6
+        && name_ok(parts[0])
+        && name_ok(parts[1])
+        && parts[2] == "releases"
+        && parts[3] == "download"
+        && !parts[4].is_empty()
+        && !parts[5].is_empty()
+        && parts[4] != ".."
+        && parts[5] != ".."
 }
 
 /// Vérifie une redirection de `from` vers `to`.
@@ -131,6 +153,11 @@ mod tests {
         ))
         .is_ok());
         assert!(check_initial(&u("https://github.com/rubiconte/GrimoireBoss/releases/download/x/a.exe")).is_ok());
+        // Fichier de release de n'importe quel auteur (outils de la communauté).
+        assert!(check_initial(&u(
+            "https://github.com/Loulouw/ROrganizer/releases/download/v1.6.0/ROrganizer-1.6.0-x86_64-windows.exe"
+        ))
+        .is_ok());
         // Les noms GitHub ne tiennent pas compte de la casse.
         assert!(check_initial(&u("https://github.com/sicluve/x")).is_ok());
     }
@@ -140,6 +167,12 @@ mod tests {
         for bad in [
             "https://evil.example/a.exe",
             "https://github.com/autre/projet/releases/a.exe",
+            "https://github.com/autre/projet/releases/tag/v1",
+            "https://github.com/autre/projet/archive/refs/heads/main.zip",
+            "https://github.com/autre/projet/raw/main/a.exe",
+            "https://github.com/autre/projet/releases/download/v1/a.exe/plus",
+            "https://github.com/autre/projet/releases/download/v1/",
+            "https://github.com/autre",
             "https://github.com/",
             "https://bworkshop.app.evil.example/a.exe",
             "https://sub.bworkshop.app/a.exe",
@@ -179,6 +212,9 @@ mod tests {
             check_redirect(&from, &u("http://release-assets.githubusercontent.com/a")),
             Err(DomainError::NotHttps(_))
         ));
+        // Fichier de release d'un autre auteur : sa redirection vers GitHub est acceptée.
+        let from = u("https://github.com/Loulouw/ROrganizer/releases/download/v1.6.0/a.exe");
+        assert!(check_redirect(&from, &u("https://release-assets.githubusercontent.com/a")).is_ok());
         // Hôte « redirection seulement » atteint depuis un lien non autorisé : refusé.
         let from = u("https://github.com/autre/x");
         assert!(check_redirect(&from, &u("https://release-assets.githubusercontent.com/a")).is_err());

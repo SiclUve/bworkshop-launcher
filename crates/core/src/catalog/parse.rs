@@ -171,6 +171,9 @@ fn build_download(id: &str, url: Option<String>, size: Option<u64>, sha: Option<
     let url = url?;
     let result = (|| {
         let url = https_url(&url)?;
+        // Lien qu'aucun téléchargement n'accepterait : l'outil s'affiche sans bouton
+        // d'installation (la fiche reste accessible) plutôt qu'avec un bouton en échec.
+        crate::security::domains::check_initial_str(&url).map_err(|e| e.to_string())?;
         let sha256 = match sha.as_deref().map(str::trim) {
             None | Some("") => None,
             Some(s) => Some(check_sha256(s)?),
@@ -463,5 +466,23 @@ mod tests {
         assert_eq!(t.page_url.as_deref(), Some("https://bworkshop.app/plugins/grimoire-boss/"));
         assert_eq!(t.download.as_ref().unwrap().size_bytes, None);
         assert!(t.order >= COMMUNITY_ORDER_BASE);
+    }
+
+    #[test]
+    fn communaute_autre_auteur_github(){
+        let plugin = |url: &str| serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+            "slug": "rorganizer", "name": "ROrganizer", "version": "1.6.0", "category": "utilitaire",
+            "kinds": ["application"], "platforms": ["windows"], "author": "Loulouw",
+            "downloadUrl": url, "sha256": "b".repeat(64), "pageUrl": "/plugins/rorganizer/"
+        }]})).unwrap();
+        // Fichier de release : installable.
+        let p = parse_community(&plugin("https://github.com/Loulouw/ROrganizer/releases/download/v1.6.0/ROrganizer-1.6.0-x86_64-windows.exe")).unwrap();
+        assert!(p.tools[0].available);
+        // Page de release ou site inconnu : pas de bouton d'installation, la fiche reste.
+        for url in ["https://github.com/Loulouw/ROrganizer/releases/tag/v1.6.0", "https://evil.example/a.exe"] {
+            let p = parse_community(&plugin(url)).unwrap();
+            assert!(p.tools[0].download.is_none() && !p.tools[0].available, "{url}");
+            assert!(p.tools[0].page_url.is_some());
+        }
     }
 }
