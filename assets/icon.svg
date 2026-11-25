@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Médaillon de bois peint avec un « B » à la main. -->
+  <path d="M256 22 C380 18, 492 120, 490 254 C488 390, 384 494, 252 490 C120 486, 20 384, 24 250 C28 118, 132 26, 256 22 Z" fill="#6b4a2b"/>
+  <path d="M256 52 C366 50, 460 140, 458 256 C456 372, 366 462, 254 460 C142 458, 54 368, 56 254 C58 142, 148 54, 256 52 Z" fill="#191d17"/>
+  <path d="M256 70 C356 70, 440 150, 438 256 C436 362, 354 442, 254 440 C154 438, 74 358, 76 254 C78 150, 156 70, 256 70 Z" fill="none" stroke="#9a6d3f" stroke-width="10" stroke-linecap="round"/>
+  <path d="M186 140 C184 210, 188 300, 186 376 M186 142 C240 132, 316 138, 318 196 C320 240, 270 252, 192 252 M196 250 C270 246, 340 258, 338 314 C336 370, 266 380, 188 374"
+        fill="none" stroke="#e9dcc0" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-tool-in-bar"
+description = "Enables the set_tool_in_bar command without any pre-configured scope."
+commands.allow = ["set_tool_in_bar"]
+
+[[permission]]
+identifier = "deny-set-tool-in-bar"
+description = "Denies the set_tool_in_bar command without any pre-configured scope."
+commands.deny = ["set_tool_in_bar"]

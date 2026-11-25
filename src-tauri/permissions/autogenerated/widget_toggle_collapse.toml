@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-widget-toggle-collapse"
+description = "Enables the widget_toggle_collapse command without any pre-configured scope."
+commands.allow = ["widget_toggle_collapse"]
+
+[[permission]]
+identifier = "deny-widget-toggle-collapse"
+description = "Denies the widget_toggle_collapse command without any pre-configured scope."
+commands.deny = ["widget_toggle_collapse"]

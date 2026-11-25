@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-toolbar-open"
+description = "Enables the set_toolbar_open command without any pre-configured scope."
+commands.allow = ["set_toolbar_open"]
+
+[[permission]]
+identifier = "deny-set-toolbar-open"
+description = "Denies the set_toolbar_open command without any pre-configured scope."
+commands.deny = ["set_toolbar_open"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-close"
+description = "Enables the toolbar_close command without any pre-configured scope."
+commands.allow = ["toolbar_close"]
+
+[[permission]]
+identifier = "deny-toolbar-close"
+description = "Denies the toolbar_close command without any pre-configured scope."
+commands.deny = ["toolbar_close"]

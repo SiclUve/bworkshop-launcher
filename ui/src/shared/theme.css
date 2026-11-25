@@ -1,0 +1,348 @@
+/* Identité bworkshop.app (« Atelier Bwork » : bois, cuir, laiton, parchemin).
+   Couleurs, polices, boutons, équerres et icônes repris du site (src/styles/global.css). */
+:root {
+  --bg: #191d17;
+  --bg-raised: #28261e;    /* surface des cartes */
+  --bg-sunken: #12150f;
+  --line: #61523b;         /* traits fins */
+  --wood: #6e4a26;         /* cadre des cartes */
+  --wood-light: #916232;
+  --parchment: #e9dcc0;
+  --ink: #251a0e;          /* texte sur or ou parchemin */
+  --text: #fff0d2;         /* contraste ≈ 15:1 sur --bg */
+  --text-muted: #cac3ad;   /* contraste ≈ 10:1 sur --bg */
+  --accent: #efbd67;       /* or : action principale, onglet actif */
+  --accent-hover: #f4cc83;
+  --green: #bfd668;        /* vert mousse : étiquettes, état « actif » */
+  --danger: #ffb4a2;
+  --focus: #ffd27a;
+
+  /* Échelle d'espacement : tout écart vient d'ici. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  /* Renfoncement : un creux dans le bois sombre, sans trait tracé autour. */
+  --sunk: inset 0 2px 3px #000000b0, inset 0 -1px 0 #ffffff12;
+
+  /* Règle typographique du site :
+     - Lacquer (« peint par un Bwork ») : titres, onglets, boutons.
+     - Gaegu (écrit à la main) : texte courant, étiquettes.
+     - Nunito : textes sérieux seulement (sécurité, erreurs, explications des réglages). */
+  --font-paint: 'Lacquer', 'Trebuchet MS', sans-serif;
+  --font-hand: 'Gaegu', 'Nunito Variable', 'Segoe UI', sans-serif;
+  --font-serious: 'Nunito Variable', 'Segoe UI', sans-serif;
+  --font-title: var(--font-hand);
+  --font-text: var(--font-hand);
+
+  /* Planche de bois avec ferrures cloutées aux deux bouts (barre des widgets). */
+  --plank:
+    radial-gradient(circle at 5px 50%, #e2d8bf 0 1.1px, #3d3a33 1.6px 2.4px, transparent 2.8px),
+    radial-gradient(circle at calc(100% - 5px) 50%, #e2d8bf 0 1.1px, #3d3a33 1.6px 2.4px, transparent 2.8px),
+    linear-gradient(90deg, #55524b 0 10px, transparent 10px calc(100% - 10px), #55524b calc(100% - 10px)),
+    repeating-linear-gradient(0deg, #0000 0 3px, #0000002a 3px 4px, #0000 4px 7px, #ffffff10 7px 8px),
+    linear-gradient(#a8743d, #7a4f27 55%, #5c3a1c);
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: radial-gradient(at 15% 0%, #333a2260, transparent 55%), var(--bg);
+  color: var(--text);
+  font-family: var(--font-hand);
+  letter-spacing: -0.025em; /* Gaegu est très espacée par défaut */
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Textes sérieux : en Nunito, comme sur le site. */
+.serious { font-family: var(--font-serious); letter-spacing: 0; }
+
+h1, h2, h3 { font-family: var(--font-paint); font-weight: 400; margin: 0; letter-spacing: -0.2px; }
+
+button {
+  font: inherit;
+  color: inherit;
+  min-height: 24px;
+  min-width: 24px;
+  cursor: pointer;
+}
+button:disabled { cursor: default; opacity: 0.55; }
+
+/* Focus clavier toujours visible. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- Boutons partagés ---------- */
+
+/* Trois niveaux de boutons, comme sur le site :
+   1. .btn-plank : la plaque de l'atelier (bois cerclé de fer boulonné), action clé d'une carte.
+      .btn-gold  : laiton doré riveté, action clé de l'en-tête.
+   2. .btn-line  : cuir (secondaire).
+   3. .text-link : lien. */
+.btn-plank {
+  position: relative;
+  border: 0;
+  min-height: 34px;
+  padding: 4px 30px 5px;
+  background: url('./bw/plaque-atelier.webp') center / 100% 100% no-repeat;
+  color: #fff1d4;
+  font-family: var(--font-paint);
+  font-size: 15px;
+  letter-spacing: 0;
+  text-shadow: 0 2px 1px #15130f;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.4));
+  white-space: nowrap;
+  transition: transform 0.16s ease, filter 0.16s ease;
+}
+.btn-plank:hover:not(:disabled) { color: #fff8e8; filter: brightness(1.12) drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45)); transform: translateY(-1px); }
+.btn-plank:active:not(:disabled) { transform: translateY(1px); filter: brightness(0.97); }
+
+.btn-gold {
+  position: relative;
+  border: 2px solid #be8b42;
+  padding: 3px 22px;
+  background: linear-gradient(100deg, #e3a949, #f0c477);
+  box-shadow: inset 0 0 0 2px #ffdf9e66, 0 3px 0 #49311b;
+  color: var(--ink);
+  font-family: var(--font-paint);
+  font-size: 15px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transition: transform 0.16s ease, background 0.16s ease;
+}
+/* Rivets du laiton */
+.btn-gold::before,
+.btn-gold::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -3px;
+  background: #e6d7b5;
+  border: 1px solid #645540;
+  border-radius: 50%;
+}
+.btn-gold::before { left: 6px; }
+.btn-gold::after { right: 6px; }
+.btn-gold:hover:not(:disabled) { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-gold:active:not(:disabled) { transform: translateY(1px); }
+
+/* Secondaire : petite planche de bois brut, coins vifs, sans contour dessiné.
+   Même grain que les étiquettes clouées et la planche sous l'en-tête. */
+.btn-line {
+  position: relative;
+  border: 0;
+  border-radius: 0;
+  padding: 3px 12px 4px;
+  background:
+    repeating-linear-gradient(0deg, #0000 0 4px, #00000026 4px 5px, #0000 5px 9px, #ffffff0a 9px 10px),
+    linear-gradient(180deg, #6b4526, #4f321b 60%, #3f2714);
+  box-shadow: inset 0 1px 0 #a0703f80, inset 0 -1px 0 #1d1209, 0 2px 0 #0c0e0a;
+  clip-path: polygon(0 4%, 100% 0, 99.4% 100%, 0.6% 96%);
+  color: #f6e6c6;
+  font-family: var(--font-paint);
+  font-size: 13.5px;
+  letter-spacing: 0;
+  text-shadow: 0 1px 0 #1d1209;
+  white-space: nowrap;
+  transition: filter 0.14s ease, transform 0.14s ease;
+}
+.btn-line:hover:not(:disabled) { filter: brightness(1.18); }
+.btn-line:active:not(:disabled) { transform: translateY(1px); }
+.btn-line:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Enfoncé (version web ouverte…) : bois teinté vert mousse. */
+.btn-line[aria-pressed='true'] {
+  background:
+    repeating-linear-gradient(0deg, #0000 0 4px, #00000026 4px 5px, #0000 5px 9px, #ffffff0a 9px 10px),
+    linear-gradient(180deg, #66762a, #4b5a1c 60%, #3a4614);
+  box-shadow: inset 0 1px 0 #c8d27a80, inset 0 -1px 0 #1d2408, 0 2px 0 #0c0e0a;
+  color: #f3f7d8;
+}
+
+/* Sur-titre (« Forgemagie ») : comme .eyebrow du site. */
+.kicker {
+  font-family: var(--font-serious);
+  font-weight: 800;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.075em;
+  color: var(--green);
+}
+
+/* Étiquette de bois clouée, un peu de travers (« Bêta »). */
+.wood-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px 0 15px;
+  background:
+    radial-gradient(circle at 6px 50%, #d9cfb6 0 1.4px, #4a4336 2px 3px, transparent 3.4px),
+    repeating-linear-gradient(0deg, #0000 0 5px, #00000022 5px 6px, #0000 6px 11px, #ffffff0d 11px 12px),
+    linear-gradient(180deg, #9a6a38, #7a5029);
+  color: #fbe9c6;
+  font-family: var(--font-hand);
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: 0 2px 0 #2a1a0d, inset 0 0 0 1px #3a2512;
+  clip-path: polygon(0 8%, 100% 0, 97% 100%, 3% 92%);
+  transform: rotate(-3deg);
+}
+
+/* Icônes dessinées du site (planche 4 × 4). */
+.bw-ic {
+  display: inline-block;
+  flex: none;
+  width: var(--ic, 20px);
+  height: var(--ic, 20px);
+  background: url('./bw/bwork-icones.webp') 0 0 / 400% 400% no-repeat;
+  vertical-align: middle;
+}
+.bw-ic.all { background-position: 0% 0%; }
+.bw-ic.tools { background-position: 33.3333% 0%; }
+.bw-ic.idea { background-position: 66.6667% 0%; }
+.bw-ic.gears { background-position: 100% 0%; }
+.bw-ic.chat { background-position: 0% 33.3333%; }
+.bw-ic.search { background-position: 33.3333% 33.3333%; }
+.bw-ic.write { background-position: 66.6667% 33.3333%; }
+.bw-ic.anvil { background-position: 100% 33.3333%; }
+.bw-ic.review { background-position: 0% 66.6667%; }
+.bw-ic.done { background-position: 33.3333% 66.6667%; }
+.bw-ic.pinned { background-position: 66.6667% 66.6667%; }
+.bw-ic.lock { background-position: 100% 66.6667%; }
+.bw-ic.banner { background-position: 0% 100%; }
+.bw-ic.bucket { background-position: 33.3333% 100%; }
+.bw-ic.up { background-position: 66.6667% 100%; }
+.bw-ic.close { background-position: 100% 100%; }
+
+/* Séparateur : planche d'étagère clouée (comme sous l'en-tête du site). */
+.plank-rule {
+  height: 11px;
+  border: 0;
+  margin: 0;
+  background:
+    radial-gradient(circle at 12px 50%, #e2d8bf 0 1.6px, #4a4336 2.2px 3.2px, transparent 3.7px),
+    radial-gradient(circle at calc(100% - 12px) 50%, #e2d8bf 0 1.6px, #4a4336 2.2px 3.2px, transparent 3.7px),
+    radial-gradient(circle at 50% 50%, #e2d8bf 0 1.6px, #4a4336 2.2px 3.2px, transparent 3.7px),
+    repeating-linear-gradient(90deg, #0000 0 140px, #00000040 140px 142px, #0000 142px 310px, #00000030 310px 311px),
+    repeating-linear-gradient(0deg, #0000 0 3px, #0000002a 3px 4px, #0000 4px 7px, #ffffff10 7px 8px),
+    linear-gradient(#a8743d, #7a4f27 55%, #5c3a1c);
+  clip-path: polygon(0 15%, 30% 0, 62% 12%, 100% 0, 99.6% 100%, 55% 88%, 24% 100%, 0.3% 85%);
+  filter: drop-shadow(0 2px 0 #0b0d09);
+}
+
+/* Carte encadrée de bois, comme les cartes du catalogue du site. */
+.frame {
+  position: relative;
+  padding: 14px 16px;
+  background: linear-gradient(140deg, #343025, #25251e 65%);
+  border: 4px solid var(--wood);
+  box-shadow:
+    inset 0 0 0 2px rgba(167, 122, 69, 0.4),
+    inset 0 0 0 5px rgba(42, 29, 17, 0.4),
+    0 4px 0 #0d0f0a,
+    0 6px 12px rgba(0, 0, 0, 0.4);
+}
+/* Équerres de fer boulonnées aux quatre coins, comme les cartes du site. */
+.frame::before {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  background:
+    url('./bw/equerre.svg') left top / 24px 24px no-repeat,
+    url('./bw/equerre-tr.svg') right top / 24px 24px no-repeat,
+    url('./bw/equerre-br.svg') right bottom / 24px 24px no-repeat,
+    url('./bw/equerre-bl.svg') left bottom / 24px 24px no-repeat;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.6));
+  pointer-events: none;
+  z-index: 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-plank:active:not(:disabled) { transform: none; }
+}
+
+/* ---------- Fenêtres de dialogue (Raccourcis, Réglages) ---------- */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 9, 0.75);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+.dialog {
+  width: 100%;
+  max-width: 480px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 16px 18px;
+}
+.dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.dialog-head h2 {
+  flex: 1;
+  font-size: 26px;
+  color: var(--text);
+}
+/* Fermer : la croix de fer dessinée du site. */
+.dialog-close {
+  display: grid;
+  place-items: center;
+  border: 1px solid #6b5636;
+  background: #2e281d;
+  color: transparent;
+  font-size: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.dialog-close::before {
+  content: '';
+  width: 22px;
+  height: 22px;
+  background: url('./bw/bwork-icones.webp') 100% 100% / 400% 400% no-repeat;
+}
+.dialog-close:hover { background: #574936; }
+
+/* Barre de défilement discrète, couleur bois. */
+* { scrollbar-width: thin; scrollbar-color: #5a4a33 transparent; }
+
+/* Lien discret (« Fiche ↗ », « Désinstaller »). */
+.text-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+.text-link:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.text-link.danger:hover { color: var(--danger); }
+
+/* Texte réservé aux lecteurs d'écran. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Dans une fenêtre qui défile, les équerres restent dans le cadre. */
+.dialog.frame::before { inset: 0; }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-prefs"
+description = "Enables the toolbar_prefs command without any pre-configured scope."
+commands.allow = ["toolbar_prefs"]
+
+[[permission]]
+identifier = "deny-toolbar-prefs"
+description = "Denies the toolbar_prefs command without any pre-configured scope."
+commands.deny = ["toolbar_prefs"]

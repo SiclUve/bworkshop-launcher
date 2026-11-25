@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-widget-bar-state"
+description = "Enables the widget_bar_state command without any pre-configured scope."
+commands.allow = ["widget_bar_state"]
+
+[[permission]]
+identifier = "deny-widget-bar-state"
+description = "Denies the widget_bar_state command without any pre-configured scope."
+commands.deny = ["widget_bar_state"]

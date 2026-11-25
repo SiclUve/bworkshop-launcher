@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-main-visible"
+description = "Enables the toolbar_main_visible command without any pre-configured scope."
+commands.allow = ["toolbar_main_visible"]
+
+[[permission]]
+identifier = "deny-toolbar-main-visible"
+description = "Denies the toolbar_main_visible command without any pre-configured scope."
+commands.deny = ["toolbar_main_visible"]

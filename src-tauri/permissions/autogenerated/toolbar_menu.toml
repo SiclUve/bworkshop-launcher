@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-menu"
+description = "Enables the toolbar_menu command without any pre-configured scope."
+commands.allow = ["toolbar_menu"]
+
+[[permission]]
+identifier = "deny-toolbar-menu"
+description = "Denies the toolbar_menu command without any pre-configured scope."
+commands.deny = ["toolbar_menu"]

@@ -1,0 +1,18 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "widgetbar",
+  "description": "Barre locale des widgets. Cible les vues wbar-* seulement : la page distante de l'outil (wweb-*), dans la même fenêtre, n'a aucune capacité.",
+  "local": true,
+  "webviews": ["wbar-*"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-widget-bar-state",
+    "allow-widget-close",
+    "allow-widget-toggle-collapse",
+    "allow-widget-reload",
+    "allow-widget-set-opacity",
+    "allow-widget-settings",
+    "allow-widget-drag"
+  ]
+}

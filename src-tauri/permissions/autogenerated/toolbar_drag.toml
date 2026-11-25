@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-drag"
+description = "Enables the toolbar_drag command without any pre-configured scope."
+commands.allow = ["toolbar_drag"]
+
+[[permission]]
+identifier = "deny-toolbar-drag"
+description = "Denies the toolbar_drag command without any pre-configured scope."
+commands.deny = ["toolbar_drag"]

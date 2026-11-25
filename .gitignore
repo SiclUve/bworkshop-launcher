@@ -1,0 +1,14 @@
+/target/
+/dist/
+node_modules/
+src-tauri/gen/
+# Clé privée de signature des mises à jour : ne JAMAIS la versionner.
+*.key
+.env
+/target-gnu/
+
+# Installateurs de test : reconstruits par test-assets/*/build.ps1.
+/test-assets/**/*.exe
+
+# Icônes préparées pour le site (à copier dans bworkshop.app, pas dans le launcher)
+/site-icons/

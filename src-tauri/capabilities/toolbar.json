@@ -1,0 +1,31 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "toolbar",
+  "description": "Barre d'outils (page locale) : lire le catalogue et les installations, lancer un outil, se déplacer et s'ajuster.",
+  "local": true,
+  "windows": ["toolbar"],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-get-settings",
+    "allow-get-catalog",
+    "allow-get-icons",
+    "allow-get-installs",
+    "allow-launch-tool",
+    "allow-toggle-tool",
+    "allow-get-widgets",
+    "allow-get-running",
+    "allow-close-tool",
+    "allow-force-close-tool",
+    "allow-tool-has-window",
+    "allow-toolbar-fit",
+    "allow-toolbar-drag",
+    "allow-toolbar-close",
+    "allow-toolbar-open-main",
+    "allow-toolbar-main-visible",
+    "allow-toolbar-menu",
+    "allow-toolbar-prefs",
+    "allow-toolbar-set-order",
+    "allow-toolbar-bar-menu"
+  ]
+}

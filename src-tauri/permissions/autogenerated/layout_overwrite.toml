@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-layout-overwrite"
+description = "Enables the layout_overwrite command without any pre-configured scope."
+commands.allow = ["layout_overwrite"]
+
+[[permission]]
+identifier = "deny-layout-overwrite"
+description = "Denies the layout_overwrite command without any pre-configured scope."
+commands.deny = ["layout_overwrite"]

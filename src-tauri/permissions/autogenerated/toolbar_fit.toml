@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-toolbar-fit"
+description = "Enables the toolbar_fit command without any pre-configured scope."
+commands.allow = ["toolbar_fit"]
+
+[[permission]]
+identifier = "deny-toolbar-fit"
+description = "Denies the toolbar_fit command without any pre-configured scope."
+commands.deny = ["toolbar_fit"]

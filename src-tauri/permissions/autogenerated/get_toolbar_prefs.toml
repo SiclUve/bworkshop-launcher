@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-toolbar-prefs"
+description = "Enables the get_toolbar_prefs command without any pre-configured scope."
+commands.allow = ["get_toolbar_prefs"]
+
+[[permission]]
+identifier = "deny-get-toolbar-prefs"
+description = "Denies the get_toolbar_prefs command without any pre-configured scope."
+commands.deny = ["get_toolbar_prefs"]

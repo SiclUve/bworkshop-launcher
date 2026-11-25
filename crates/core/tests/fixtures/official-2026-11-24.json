@@ -1,0 +1,414 @@
+{
+  "schemaVersion": 2,
+  "apps": [
+    {
+      "id": "assistant-forge",
+      "name": "Assistant Forge",
+      "origin": "bworkshop",
+      "author": "Bworkshop",
+      "kinds": [
+        "application",
+        "overlay",
+        "web"
+      ],
+      "platforms": [
+        "windows",
+        "web"
+      ],
+      "tagline": {
+        "fr": "L'assistant de forgemagie pour Dofus : lecture OCR automatique en direct (.exe) ou calculateur Web & Overlay sans OCR.",
+        "en": "The runecrafting assistant for Dofus: automatic live OCR tracking (.exe) or no-OCR Web & Overlay calculator."
+      },
+      "seoTitle": {
+        "fr": "Assistant Forge – Calculateur de forgemagie Dofus",
+        "en": "Assistant Forge – Free Dofus runecrafting calculator"
+      },
+      "category": "forgemagie",
+      "status": "beta",
+      "order": 1,
+      "description": {
+        "fr": "Assistant Forge accompagne les forgemages dans leurs choix, calcule le reliquat, estime les probabilités (SC/SN/EC) et recommande les meilleures runes grâce à son moteur statistique. La version Web/Overlay sans OCR ci-dessous permet de tester le moteur en saisie manuelle sans rien installer, mais l'application Windows (.exe) est nettement supérieure en session réelle : elle lit automatiquement ta fenêtre Dofus en direct par OCR (statistiques, reliquat, runes, historique), suit ton stock et optimise les coûts en kamas sans aucune saisie.",
+        "en": "Assistant Forge guides runecrafters in their choices, calculates remaining potential (sink), estimates probabilities (SC/SN/EC) and recommends the best runes with its statistical engine. While the no-OCR Web/Overlay edition below lets you test the engine manually without installing anything, the downloaded Windows version (.exe) is far superior in real crafting sessions: it automatically reads your Dofus window live via OCR (stats, sink, runes, history), tracks your rune stock and optimizes kama costs with zero manual typing."
+      },
+      "features": [
+        {
+          "fr": "Avantage version .exe téléchargée : reconnaissance visuelle automatique (OCR) en direct des statistiques, du reliquat, des runes et de l'historique dans Dofus",
+          "en": "Downloaded .exe advantage: automatic live visual recognition (OCR) of item stats, remaining potential, runes and crafting history in Dofus"
+        },
+        {
+          "fr": "Estimation des probabilités (SC / SN / EC) et moteur de recommandation selon ton objectif et la tolérance au risque",
+          "en": "Probability estimates (SC / SN / EC) and rune recommendation engine tailored to your target and risk tolerance"
+        },
+        {
+          "fr": "Suivi automatique du stock de runes, optimisation par coût en kamas et simulateur de passes (.exe)",
+          "en": "Automatic rune inventory tracking, kama cost optimization and crafting plan simulator (.exe)"
+        },
+        {
+          "fr": "Version Web & Overlay intégrée : recherche sur 2 512 équipements (jets Min/Max), import par capture d'écran, liste d'achats, simulateur Monte-Carlo et analyse des courbes",
+          "en": "Embedded Web & Overlay edition: search across 2,512 items (Min/Max rolls), screenshot import, shopping list, Monte-Carlo simulator and probability curve analysis"
+        }
+      ],
+      "compatibility": [
+        "Dofus 3 (Unity)"
+      ],
+      "version": "0.1.0",
+      "releaseDate": "2026-11-13",
+      "download": {
+        "url": "https://github.com/SiclUve/bworkshop-releases/releases/download/AssistantForge0.1.0/ForgeAssistant_Setup_0.1.0.exe",
+        "sizeBytes": 141743088,
+        "sha256": "812f79629834e2dc6aa6d13644960e7488897e2fd041a1e78728c4851ac80d9b"
+      },
+      "kofiUrl": "https://ko-fi.com/sicluve",
+      "sourceUrl": "https://github.com/SiclUve/bworkshop-releases/releases/tag/AssistantForge0.1.0",
+      "screenshots": [
+        {
+          "src": "/screenshots/assistant-forge-en-jeu.webp",
+          "alt": {
+            "fr": "Aperçu en jeu d'Assistant Forge (.exe) lisant en direct l'atelier de Joaillomager dans Dofus",
+            "en": "In-game preview of Assistant Forge (.exe) reading the Jewelmage workshop live in Dofus"
+          }
+        }
+      ],
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-11-13",
+          "changes": [
+            {
+              "fr": "Ajout de la version Web & Overlay (mode manuel sans OCR) et de l'aperçu en jeu (.exe) sur la fiche.",
+              "en": "Added interactive Web & Overlay version (manual mode without OCR) and in-game preview (.exe) on the page."
+            },
+            {
+              "fr": "Première bêta publique avec installateur Windows autonome et reconnaissance OCR en direct.",
+              "en": "First public beta with standalone Windows installer and live visual OCR tracking."
+            }
+          ]
+        }
+      ],
+      "pageUrl": "/apps/assistant-forge/"
+    },
+    {
+      "id": "simulateur-harebourg",
+      "name": "Simulateur Harebourg",
+      "origin": "bworkshop",
+      "author": "Bworkshop",
+      "kinds": [
+        "application",
+        "overlay",
+        "web"
+      ],
+      "platforms": [
+        "windows",
+        "web"
+      ],
+      "tagline": {
+        "fr": "Simule et visualise en direct les confusions du Comte Harebourg : en vrai Overlay transparent sur Dofus (.exe) ou directement sur le web.",
+        "en": "Simulate and visualize Count Harebourg's confusions live: as a true transparent in-game Overlay (.exe) or directly on the web."
+      },
+      "seoTitle": {
+        "fr": "Simulateur Harebourg – confusion du Comte en overlay",
+        "en": "Harebourg Simulator – Count's confusion overlay"
+      },
+      "category": "combat",
+      "status": "beta",
+      "order": 2,
+      "description": {
+        "fr": "Le Simulateur Harebourg calcule et affiche en direct où tes sorts atterrissent réellement après la confusion du Comte Harebourg (Tour de la Clepsydre, Frigost III). Si la version Web/Overlay ci-dessous permet de tester les mécaniques ou de dépanner sans rien installer, la version téléchargée (.exe) est nettement supérieure en combat réel : elle dessine directement par-dessus les cases de ta fenêtre Dofus en transparence totale (sans bloquer tes clics), suit ta souris en temps réel sur le terrain, cale automatiquement la grille sur la salle et intègre des raccourcis clavier globaux 100 % configurables utilisables sans jamais quitter le jeu.",
+        "en": "The Harebourg Simulator calculates and displays live where your spells actually land after Count Harebourg's confusion (Clepsydra Tower, Frigost III). While the Web/Overlay version below lets you test mechanics without installing anything, the downloaded Windows version (.exe) is far superior in real fights: it draws directly over your Dofus game cells in full click-through transparency, tracks your mouse cursor live on the battlefield, auto-calibrates the grid to the room, and includes 100% configurable global keyboard shortcuts that work without ever leaving the game."
+      },
+      "features": [
+        {
+          "fr": "Avantage version .exe téléchargée : superposition transparente traversante (Click-Through) directement sur le carrelage de Dofus — vois la case visée (bleue) et la vraie case d'atterrissage (ATTERRIT ICI en jaune) sur ton jeu",
+          "en": "Downloaded .exe advantage: transparent Click-Through overlay directly on the Dofus floor — see the aimed cell (blue) and actual landing cell (LANDS HERE in yellow) right on your game"
+        },
+        {
+          "fr": "Raccourcis clavier globaux 100 % configurables (.exe) : place ton personnage (F6), passe au nouveau tour (F9), compte tes lignes CaC (F10/F11) ou active le mode invocation (F4) sans quitter Dofus, et personnalise chaque touche (F1–F24, lettres, chiffres, Ctrl/Alt/Maj)",
+          "en": "100% configurable global hotkeys (.exe): place your character (F6), start a new turn (F9), count melee lines (F10/F11), or toggle summon mode (F4) without leaving Dofus, and customize every keybind (F1–F24, letters, numbers, Ctrl/Alt/Shift)"
+        },
+        {
+          "fr": "Calage automatique de la grille (.exe) sur la salle de la Tour de la Clepsydre (4 variantes : Comte seul, Nileza, Klime, Sylargh) et lecture automatique de la ligne « Confusion … Pi/4 » copiée dans le chat",
+          "en": "Automatic grid calibration (.exe) on the Clepsydra Tower room (4 variants: Count solo, Nileza, Klime, Sylargh) and automatic reading of the 'Confusion … Pi/4' line copied from chat"
+        },
+        {
+          "fr": "Cadran du Comte interactif, gestion des 5 tranches de PV, mode mini repliable et simulateur Web / Overlay Picture-in-Picture intégré sur cette page",
+          "en": "Interactive Count's Dial, 5 HP brackets, collapsible mini mode, and embedded Web / Picture-in-Picture Overlay simulator on this page"
+        }
+      ],
+      "compatibility": [
+        "Dofus 3 (Unity)"
+      ],
+      "version": "0.2.0",
+      "releaseDate": "2026-11-09",
+      "download": {
+        "url": "https://github.com/SiclUve/bworkshop-releases/releases/download/v0.2.0/HarebourgOverlay-Setup.exe",
+        "sizeBytes": 53223133,
+        "sha256": "15d6534d9332e4000128346e5b985084b4d67e516c9d3c22e228f2322768c8e3"
+      },
+      "kofiUrl": "https://ko-fi.com/sicluve",
+      "sourceUrl": "https://github.com/SiclUve/bworkshop-releases/releases/tag/v0.2.0",
+      "screenshots": [
+        {
+          "src": "/screenshots/harebourg-overlay-combat.jpg",
+          "alt": {
+            "fr": "Aperçu en combat réel de la version .exe du Simulateur Harebourg superposée directement sur la salle du Comte Harebourg dans Dofus",
+            "en": "In-game preview of the downloaded .exe Harebourg Overlay drawn directly over Count Harebourg's room in Dofus"
+          }
+        }
+      ],
+      "changelog": [
+        {
+          "version": "0.2.0",
+          "date": "2026-11-09",
+          "changes": [
+            {
+              "fr": "Ajout de l'aperçu en combat réel (.exe) et de la version Web & Overlay détachable sur la fiche.",
+              "en": "Added in-game combat preview (.exe) and interactive Web & detachable Overlay version on the page."
+            },
+            {
+              "fr": "Première version bêta publique de l'application Windows avec calage automatique et raccourcis configurables.",
+              "en": "First public beta release of the Windows application with auto-calibration and configurable hotkeys."
+            }
+          ]
+        }
+      ],
+      "pageUrl": "/apps/simulateur-harebourg/"
+    },
+    {
+      "id": "bworklingo",
+      "name": "Bworklingo",
+      "origin": "bworkshop",
+      "author": "Bworkshop",
+      "kinds": [
+        "application",
+        "overlay",
+        "web"
+      ],
+      "platforms": [
+        "windows",
+        "web"
+      ],
+      "tagline": {
+        "fr": "Traducteur instantané FR, EN, ES et PT en overlay flottant (application Windows ou web).",
+        "en": "Instant FR, EN, ES, and PT translator as a floating overlay (Windows app or web)."
+      },
+      "seoTitle": {
+        "fr": "Bworklingo – Traducteur Dofus gratuit FR, EN, ES, PT",
+        "en": "Bworklingo – Free Dofus translator FR, EN, ES, PT"
+      },
+      "category": "traduction",
+      "status": "beta",
+      "order": 4,
+      "description": {
+        "fr": "Bworklingo traduit instantanément tes messages entre le français, l'anglais, l'espagnol et le portugais tout en préservant le lexique du jeu (plus de 19 030 termes, donjons, monstres, quêtes et abréviations communautaires FR/EN/ES/PT). Utilise-le directement sur le web ou installe la version Windows (.exe) pour profiter du raccourci global Alt+T et de l'overlay Always-on-Top au-dessus du jeu.",
+        "en": "Bworklingo instantly translates your messages between French, English, Spanish, and Portuguese while preserving in-game terminology (over 19,030 terms, dungeons, monsters, quests, and FR/EN/ES/PT community abbreviations). Use it right on the web or install the Windows (.exe) version for the global Alt+T shortcut and Always-on-Top in-game overlay."
+      },
+      "features": [
+        {
+          "fr": "Application Windows (.exe) : raccourci clavier global Alt+T pour afficher/masquer instantanément l'overlay par-dessus le jeu.",
+          "en": "Windows (.exe) app: global Alt+T hotkey to instantly show or hide the overlay on top of the game."
+        },
+        {
+          "fr": "4 langues prises en charge (FR, EN, ES, PT) avec détection automatique et normalisation de l'argot communautaire (mazmo, cala, dj, ravageurs, etc.).",
+          "en": "4 supported languages (FR, EN, ES, PT) with auto-detection and community slang normalization."
+        },
+        {
+          "fr": "Lexique intégré de plus de 19 030 termes avec protection des liens entre crochets et commandes de chat (/b, /r, /g, /w).",
+          "en": "Built-in lexicon of over 19,030 terms with protection for bracketed item links and chat commands (/b, /r, /g, /w)."
+        },
+        {
+          "fr": "Interface librement déplaçable et redimensionnable à la souris avec copie automatique dans le presse-papier.",
+          "en": "Freely draggable and mouse-resizable interface with automatic clipboard copy."
+        }
+      ],
+      "compatibility": [
+        "Dofus Unity",
+        "Dofus Rétro"
+      ],
+      "version": "0.2.0",
+      "releaseDate": "2026-11-13",
+      "download": {
+        "url": "https://bworkshop.app/downloads/Bworklingo-Setup-v2.exe",
+        "sizeBytes": 8702453,
+        "sha256": "ec66a7b090c437c8e0bd1b5dbf2648e85446b419c15fb2081521cb58518d0018"
+      },
+      "kofiUrl": "https://ko-fi.com/sicluve",
+      "screenshots": [],
+      "changelog": [
+        {
+          "version": "0.2.0",
+          "date": "2026-11-13",
+          "changes": [
+            {
+              "fr": "Publication de l'installeur Windows natif (.exe) léger avec raccourci global Alt+T.",
+              "en": "Released lightweight native Windows installer (.exe) with global Alt+T shortcut."
+            },
+            {
+              "fr": "Option visible « Lexique : ON / OFF » pour traduire du small talk en discussion libre sans lexique du jeu.",
+              "en": "Added visible 'Lexicon : ON / OFF' toggle for casual small-talk translation without game lexicon rules."
+            },
+            {
+              "fr": "Correction du double collage au Ctrl+V, barre de défilement horizontale et traduction FR/EN/ES/PT des catégories du lexique.",
+              "en": "Fixed Ctrl+V double-paste bug, added category horizontal scrollbar/arrows, and translated lexicon categories across FR/EN/ES/PT."
+            },
+            {
+              "fr": "Audit complet de l'argot et des abréviations FR/EN/ES/PT (donjons, familles de monstres, commerce, PvM).",
+              "en": "Complete FR/EN/ES/PT slang and abbreviation audit (dungeons, monster families, trade, PvM)."
+            }
+          ]
+        },
+        {
+          "version": "0.1.0",
+          "date": "2026-11-09",
+          "changes": [
+            {
+              "fr": "Première version bêta publique (Application Windows, Overlay et outil Web).",
+              "en": "First public beta release (Windows application, Overlay, and Web tool)."
+            }
+          ]
+        }
+      ],
+      "pageUrl": "/apps/bworklingo/"
+    },
+    {
+      "id": "skin-helper",
+      "name": "Dofus Color Picker",
+      "origin": "bworkshop",
+      "author": "Bworkshop",
+      "kinds": [
+        "application",
+        "overlay",
+        "web"
+      ],
+      "platforms": [
+        "windows",
+        "web"
+      ],
+      "tagline": {
+        "fr": "Harmonise les couleurs de ton personnage avec tes apparats.",
+        "en": "Match your character's colors with your outfit."
+      },
+      "seoTitle": {
+        "fr": "Dofus Color Picker – Accorde les couleurs de ton skin",
+        "en": "Dofus Color Picker – Match your Dofus skin colors"
+      },
+      "seoDescription": {
+        "fr": "Dofus Color Picker accorde les couleurs de ton personnage Dofus avec tes apparats, pour un Bwork stylé de la tête aux pieds.",
+        "en": "Dofus Color Picker matches your Dofus character's colors with your outfit, for a stylish Bwork from head to toe."
+      },
+      "category": "personnalisation",
+      "status": "beta",
+      "order": 10,
+      "description": {
+        "fr": "Dofus Color Picker est un assistant de création de skins pour Dofus Unity. Tu essaies des apparats dans la cabine d'essayage, tu lances une analyse, et l'outil propose plusieurs palettes harmonieuses avec les six codes HEX à copier dans le jeu. Il intègre aussi une pipette de couleurs utilisable partout sur l'écran. L'application fonctionne localement, sans compte et sans modifier le client du jeu.",
+        "en": "Dofus Color Picker is a skin-creation assistant for Dofus Unity. You try on outfits in the fitting room, start an analysis, and the tool suggests several harmonious palettes with the six HEX codes to copy into the game. It also includes a color picker usable anywhere on screen. The application runs locally, with no account required and without modifying the game client."
+      },
+      "features": [
+        {
+          "fr": "Analyse des couleurs des apparats essayés en cabine",
+          "en": "Color analysis of the outfits tried in the fitting room"
+        },
+        {
+          "fr": "Trois harmonisations : fidèle, équilibrée, créative",
+          "en": "Three harmonies: faithful, balanced, creative"
+        },
+        {
+          "fr": "Les six codes HEX prêts à copier, avec verrouillage de certaines couleurs",
+          "en": "The six HEX codes ready to copy, with the option to lock some colors"
+        },
+        {
+          "fr": "Pipette universelle avec historique et suggestions de nuances",
+          "en": "Universal color picker with history and shade suggestions"
+        },
+        {
+          "fr": "Bibliothèque de skins sauvegardés",
+          "en": "Library of saved skins"
+        }
+      ],
+      "compatibility": [
+        "Dofus Unity"
+      ],
+      "version": "0.1.0",
+      "releaseDate": "2026-11-15",
+      "download": {
+        "url": "https://bworkshop.app/api/downloads/DofusColorPicker-Setup.exe",
+        "sizeBytes": 99493731,
+        "sha256": "8bd1e63b7424e807f5cde2c23bd83386aa054e0f72f733e282be137c6136089f"
+      },
+      "kofiUrl": "https://ko-fi.com/sicluve",
+      "screenshots": [],
+      "changelog": [
+        {
+          "version": "0.1.0",
+          "date": "2026-11-15",
+          "changes": [
+            {
+              "fr": "Première version bêta Windows (.exe) + outil Web & Overlay flottant.",
+              "en": "First beta Windows (.exe) release + Web & floating Overlay tool."
+            }
+          ]
+        }
+      ],
+      "pageUrl": "/apps/skin-helper/"
+    },
+    {
+      "id": "dofus-photobooth",
+      "name": "Dofus Photobooth",
+      "origin": "bworkshop",
+      "author": "Bworkshop",
+      "kinds": [
+        "web"
+      ],
+      "platforms": [
+        "web"
+      ],
+      "tagline": {
+        "fr": "Transforme tes skins en cartes à partager.",
+        "en": "Turn your skins into cards to share."
+      },
+      "seoTitle": {
+        "fr": "Dofus Photobooth – Cartes de présentation de skin",
+        "en": "Dofus Photobooth – Showcase cards for your Dofus skin"
+      },
+      "seoDescription": {
+        "fr": "Dofus Photobooth crée des cartes de présentation pour tes skins Dofus à partir d'un lien Skinator : décor de zone, mise en scène et export prêt pour les réseaux.",
+        "en": "Dofus Photobooth makes showcase cards for your Dofus skins from a Skinator link: zone backdrop, staging and an export ready for social media."
+      },
+      "category": "personnalisation",
+      "status": "en-developpement",
+      "order": 11,
+      "description": {
+        "fr": "Dofus Photobooth fabrique des cartes de présentation pour tes skins. Tu colles un lien Skinator de Barbofus, et l'outil place tes personnages et leurs familiers sur la carte. Tu choisis une mise en scène (solo, duo, vitrine…), un décor peint d'une zone célèbre du jeu et une ambiance, puis tu ajoutes un titre. La carte s'exporte en carré, portrait, story ou bannière. Tout se passe dans le navigateur, sans compte.",
+        "en": "Dofus Photobooth makes showcase cards for your skins. You paste a Barbofus Skinator link, and the tool places your characters and their pets on the card. You pick a staging (solo, duo, showcase…), a painted backdrop of a famous zone from the game and a mood, then add a title. The card exports as square, portrait, story or banner. Everything runs in the browser, with no account."
+      },
+      "features": [
+        {
+          "fr": "Import direct depuis un lien Skinator",
+          "en": "Direct import from a Skinator link"
+        },
+        {
+          "fr": "Mises en scène prêtes : solo, duo, trio, vitrine",
+          "en": "Ready-made staging: solo, duo, trio, showcase"
+        },
+        {
+          "fr": "Seize décors peints de zones célèbres, avec cinq ambiances",
+          "en": "Sixteen painted backdrops of famous zones, with five moods"
+        },
+        {
+          "fr": "Formats carré, portrait, story et bannière",
+          "en": "Square, portrait, story and banner formats"
+        },
+        {
+          "fr": "Annuler / rétablir et sauvegarde automatique de la carte",
+          "en": "Undo / redo and automatic saving of the card"
+        }
+      ],
+      "compatibility": [
+        "Dofus Unity"
+      ],
+      "kofiUrl": "https://ko-fi.com/sicluve",
+      "screenshots": [],
+      "changelog": [],
+      "pageUrl": "/apps/dofus-photobooth/"
+    }
+  ]
+}
