@@ -94,7 +94,7 @@ $Notes
 Vérifier le fichier téléchargé (PowerShell) :
 
 ``````powershell
-Get-FileHash "`$env:USERPROFILE\Downloads\$($setup.Name)" -Algorithm SHA256
+Get-FileHash "`$env:USERPROFILE\Downloads\$name" -Algorithm SHA256
 ``````
 
 Windows 10 et 11 · installation sans droits administrateur · code source : https://github.com/SiclUve/bworkshop-launcher
