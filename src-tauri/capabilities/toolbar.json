@@ -25,6 +25,7 @@
     "allow-toolbar-menu",
     "allow-toolbar-prefs",
     "allow-toolbar-set-order",
+    "allow-toolbar-resize",
     "allow-toolbar-bar-menu"
   ]
 }

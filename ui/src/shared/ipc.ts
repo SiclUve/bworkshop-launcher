@@ -219,6 +219,8 @@ export interface ToolbarPrefs {
   modes: Record<string, OpenMode>;
   order: string[];
   vertical: boolean;
+  /** Taille des tuiles en pixels (28 à 112), choisie en tirant un coin de la barre. */
+  tile: number;
 }
 /** Même règle que `ToolbarState::in_bar` : installé sauf retiré, web seulement si ajouté. */
 export const inBar = (p: ToolbarPrefs, id: string, installed: boolean) =>
@@ -244,6 +246,10 @@ export const setToolMode = (id: string, mode: OpenMode | null) => invoke<void>('
 export const toggleTool = (id: string) => invoke<void>('toggle_tool', { id });
 export const toolbarPrefs = () => invoke<ToolbarPrefs>('toolbar_prefs');
 export const toolbarSetOrder = (order: string[]) => invoke<void>('toolbar_set_order', { order });
+/** Coin tiré pour changer la taille des tuiles (le coin opposé reste en place). */
+export type Corner = 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+export const toolbarResize = (tile: number, count: number, message: boolean, corner: Corner, done: boolean) =>
+  invoke<void>('toolbar_resize', { tile, count, message, corner, done });
 export const onToolbarPrefs = (cb: (p: ToolbarPrefs) => void): Promise<UnlistenFn> =>
   listen<ToolbarPrefs>('toolbar-prefs', (e) => cb(e.payload));
 export const onToolbarNotice = (cb: (message: string) => void): Promise<UnlistenFn> =>

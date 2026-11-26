@@ -2,12 +2,13 @@
 //!
 //! - Page locale `toolbar.html`, sans page distante.
 //! - Toujours au premier plan, jamais activée par le launcher (même règle que les widgets).
-//! - Sa taille suit le nombre de tuiles ; seule sa position est enregistrée, par écran.
+//! - Sa taille suit le nombre de tuiles et leur taille, choisie en tirant un coin ;
+//!   sa position est enregistrée par écran.
 //! - Jamais rendue traversante par le verrouillage : elle doit rester cliquable en jeu.
 
 use super::{monitors, native, Widgets, BACKGROUND};
 use bworkshop_core::geometry::{self, Placement, Rect};
-use bworkshop_core::widgets_store::OpenMode;
+use bworkshop_core::widgets_store::{clamp_tile, OpenMode};
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 use windows::Win32::Foundation::HWND;
@@ -17,7 +18,7 @@ pub const LABEL: &str = "toolbar";
 pub(super) const MOVED_KEY: &str = ":toolbar";
 
 /// Dimensions en pixels logiques (doivent correspondre à `Toolbar.svelte`).
-const TILE: f64 = 44.0;
+/// La taille des tuiles, elle, se choisit en tirant un coin de la barre.
 const GAP: f64 = 4.0;
 const PAD: f64 = 6.0;
 const HANDLE: f64 = 14.0;
@@ -26,9 +27,20 @@ const MAX_COLUMNS: usize = 6;
 const MESSAGE_HEIGHT: f64 = 40.0;
 const MESSAGE_MIN_WIDTH: f64 = 240.0;
 
-/// Taille de la barre pour `count` tuiles (la tuile « + » comprise), avec ou sans message,
-/// en ligne (6 colonnes au plus) ou en colonne (6 lignes au plus).
-pub fn size_for(count: usize, message: bool, vertical: bool) -> (f64, f64) {
+/// Coin tiré pour redimensionner : le coin opposé reste en place.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Corner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+/// Taille de la barre pour `count` tuiles (la tuile « + » comprise) de `tile` pixels,
+/// avec ou sans message, en ligne (6 colonnes au plus) ou en colonne (6 lignes au plus).
+pub fn size_for(count: usize, message: bool, vertical: bool, tile: u32) -> (f64, f64) {
+    let tile = tile as f64;
     let n = count.max(1);
     let (cols, rows) = if vertical {
         let rows = n.min(MAX_COLUMNS);
@@ -37,7 +49,7 @@ pub fn size_for(count: usize, message: bool, vertical: bool) -> (f64, f64) {
         let cols = n.min(MAX_COLUMNS);
         (cols, n.div_ceil(cols))
     };
-    let span = |k: usize| k as f64 * TILE + (k.saturating_sub(1)) as f64 * GAP;
+    let span = |k: usize| k as f64 * tile + (k.saturating_sub(1)) as f64 * GAP;
     let (w, h) = (2.0 * PAD + span(cols), HANDLE + 2.0 * PAD + span(rows));
     if message {
         (w.max(MESSAGE_MIN_WIDTH), h + MESSAGE_HEIGHT)
@@ -66,12 +78,12 @@ impl Widgets {
             return Ok(());
         }
         let monitors = monitors(app);
-        let position = {
+        let (position, tile) = {
             let mut f = self.file.lock().map_err(|_| "État des widgets indisponible.")?;
             f.toolbar.open = true;
-            f.toolbar.position.clone()
+            (f.toolbar.position.clone(), f.toolbar.tile_size())
         };
-        let (w, h) = size_for(1, false, false);
+        let (w, h) = size_for(1, false, false, tile);
         let default = Placement { w, h, ..DEFAULT_POSITION };
         let start = position.restore(&monitors, default).unwrap_or(Rect::new(40, 40, w as u32, h as u32));
 
@@ -132,14 +144,27 @@ impl Widgets {
 
     /// Ajuste la taille au nombre de tuiles, en gardant le coin haut-gauche (et la barre dans l'écran).
     pub fn fit_toolbar(&self, app: &AppHandle, count: usize, message: bool) {
+        self.fit_toolbar_from(app, count, message, Corner::BottomRight);
+    }
+
+    /// Ajuste la taille ; le coin opposé à `dragged` reste en place.
+    fn fit_toolbar_from(&self, app: &AppHandle, count: usize, message: bool, dragged: Corner) {
         let Some(hwnd) = self.toolbar_hwnd() else { return };
         let Some(current) = native::window_rect(hwnd) else { return };
         let monitors = monitors(app);
         let Some(m) = geometry::monitor_for(current, &monitors) else { return };
-        let vertical = self.file.lock().map(|f| f.toolbar.vertical).unwrap_or(false);
-        let (w, h) = size_for(count, message, vertical);
-        let wanted = Rect::new(current.x, current.y, (w * m.scale).round() as u32, (h * m.scale).round() as u32);
-        let target = geometry::clamp(wanted, m);
+        let (vertical, tile) = self.file.lock().map(|f| (f.toolbar.vertical, f.toolbar.tile_size())).unwrap_or((false, 44));
+        let (w, h) = size_for(count, message, vertical, tile);
+        let (w, h) = ((w * m.scale).round() as u32, (h * m.scale).round() as u32);
+        let x = match dragged {
+            Corner::TopLeft | Corner::BottomLeft => current.x + current.w as i32 - w as i32,
+            _ => current.x,
+        };
+        let y = match dragged {
+            Corner::TopLeft | Corner::TopRight => current.y + current.h as i32 - h as i32,
+            _ => current.y,
+        };
+        let target = geometry::clamp(Rect::new(x, y, w, h), m);
         if target != current {
             native::set_rect(hwnd, target);
         }
@@ -200,6 +225,8 @@ pub struct ToolbarPrefs {
     pub modes: std::collections::BTreeMap<String, OpenMode>,
     pub order: Vec<String>,
     pub vertical: bool,
+    /// Taille des tuiles, en pixels logiques.
+    pub tile: u32,
 }
 
 /// Événement envoyé à la barre quand ses réglages changent.
@@ -215,6 +242,7 @@ impl Widgets {
                 modes: f.toolbar.modes.clone(),
                 order: f.toolbar.order.clone(),
                 vertical: f.toolbar.vertical,
+                tile: f.toolbar.tile_size(),
             })
             .unwrap_or_default()
     }
@@ -272,6 +300,18 @@ impl Widgets {
     pub fn set_toolbar_vertical(&self, app: &AppHandle, vertical: bool) {
         self.update_prefs(app, |t| t.vertical = vertical);
     }
+
+    /// Nouvelle taille des tuiles, en tirant le coin `dragged` : la fenêtre suit aussitôt.
+    /// `done` : fin du glisser, la taille est enregistrée et annoncée.
+    pub fn resize_toolbar(&self, app: &AppHandle, tile: u32, count: usize, message: bool, dragged: Corner, done: bool) {
+        let tile = clamp_tile(tile);
+        if done {
+            self.update_prefs(app, |t| t.tile = tile);
+        } else if let Ok(mut f) = self.file.lock() {
+            f.toolbar.tile = tile;
+        }
+        self.fit_toolbar_from(app, count, message, dragged);
+    }
 }
 
 #[cfg(test)]
@@ -281,15 +321,17 @@ mod tests {
     #[test]
     fn taille_selon_le_nombre_de_tuiles() {
         // Une tuile (« + » seule) : une colonne, une ligne.
-        assert_eq!(size_for(0, false, false), (56.0, 70.0));
-        assert_eq!(size_for(1, false, false), (56.0, 70.0));
+        assert_eq!(size_for(0, false, false, 44), (56.0, 70.0));
+        assert_eq!(size_for(1, false, false, 44), (56.0, 70.0));
         // Six tuiles : une ligne pleine.
-        assert_eq!(size_for(6, false, false), (12.0 + 6.0 * 44.0 + 5.0 * 4.0, 70.0));
+        assert_eq!(size_for(6, false, false, 44), (12.0 + 6.0 * 44.0 + 5.0 * 4.0, 70.0));
         // Sept tuiles : deux lignes, six colonnes.
-        assert_eq!(size_for(7, false, false), (12.0 + 6.0 * 44.0 + 5.0 * 4.0, 14.0 + 12.0 + 2.0 * 44.0 + 4.0));
+        assert_eq!(size_for(7, false, false, 44), (12.0 + 6.0 * 44.0 + 5.0 * 4.0, 14.0 + 12.0 + 2.0 * 44.0 + 4.0));
         // Avec message : bande de 40 px, et 240 px de large au moins.
-        assert_eq!(size_for(2, true, false), (240.0, 70.0 + 40.0));
+        assert_eq!(size_for(2, true, false, 44), (240.0, 70.0 + 40.0));
         // En colonne : sept tuiles = six lignes, deux colonnes.
-        assert_eq!(size_for(7, false, true), (12.0 + 2.0 * 44.0 + 4.0, 14.0 + 12.0 + 6.0 * 44.0 + 5.0 * 4.0));
+        assert_eq!(size_for(7, false, true, 44), (12.0 + 2.0 * 44.0 + 4.0, 14.0 + 12.0 + 6.0 * 44.0 + 5.0 * 4.0));
+        // Tuiles agrandies en tirant un coin.
+        assert_eq!(size_for(2, false, false, 80), (12.0 + 2.0 * 80.0 + 4.0, 14.0 + 12.0 + 80.0));
     }
 }

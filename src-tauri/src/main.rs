@@ -107,6 +107,7 @@ fn main() {
             widgets::commands::toolbar_menu,
             widgets::commands::toolbar_prefs,
             widgets::commands::toolbar_set_order,
+            widgets::commands::toolbar_resize,
             widgets::commands::toolbar_bar_menu,
             layouts::get_layouts,
             layouts::layout_save,

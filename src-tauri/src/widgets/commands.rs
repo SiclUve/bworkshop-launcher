@@ -185,6 +185,24 @@ pub fn toolbar_fit(app: AppHandle, widgets: State<'_, Widgets>, webview: Webview
     Ok(())
 }
 
+/// Coin de la barre tiré : nouvelle taille des tuiles (`done` : fin du glisser, enregistrée).
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn toolbar_resize(
+    app: AppHandle,
+    widgets: State<'_, Widgets>,
+    webview: Webview,
+    tile: u32,
+    count: usize,
+    message: bool,
+    corner: super::toolbar::Corner,
+    done: bool,
+) -> Result<(), String> {
+    from_toolbar(&webview)?;
+    widgets.resize_toolbar(&app, tile, count.min(200), message, corner, done);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn toolbar_drag(webview: Webview) -> Result<(), String> {
     from_toolbar(&webview)?;

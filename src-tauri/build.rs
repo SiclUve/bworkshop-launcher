@@ -53,6 +53,7 @@ fn main() {
                 "toolbar_menu",
                 "toolbar_prefs",
                 "toolbar_set_order",
+                "toolbar_resize",
                 "toolbar_bar_menu",
                 // Dispositions (fenêtre principale).
                 "get_layouts",

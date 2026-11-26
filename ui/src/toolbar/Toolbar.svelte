@@ -1,7 +1,8 @@
 <script lang="ts">
   // Barre d'outils : une tuile par outil choisi dans « Mes plugins » (logiciel installé,
   // overlay web ou page web selon son mode), puis « + ».
-  // Dimensions à garder en phase avec `widgets/toolbar.rs` (TILE, GAP, PAD, HANDLE, MESSAGE_*).
+  // Dimensions à garder en phase avec `widgets/toolbar.rs` (GAP, PAD, HANDLE, MESSAGE_*).
+  // La taille des tuiles se change en tirant un des quatre coins ; les icônes suivent.
   import { onMount } from 'svelte';
   import {
     getCatalog,
@@ -26,6 +27,7 @@
     toolbarBarMenu,
     toolbarPrefs,
     toolbarSetOrder,
+    toolbarResize,
     onToolbarPrefs,
     toolbarToggleMain,
     toggleTool,
@@ -40,6 +42,7 @@
     type RunningView,
     type Tool,
     type ToolbarPrefs,
+    type Corner,
   } from '../shared/ipc';
   import { t } from '../shared/i18n';
 
@@ -74,7 +77,7 @@
   }
 
   // Tuiles retirées, ordre choisi en glissant, orientation.
-  let prefs = $state<ToolbarPrefs>({ hidden: [], shown: [], modes: {}, order: [], vertical: false });
+  let prefs = $state<ToolbarPrefs>({ hidden: [], shown: [], modes: {}, order: [], vertical: false, tile: 44 });
   // Versions web ouvertes sur le jeu (tuile allumée).
   let webOpen = $state<string[]>([]);
 
@@ -98,22 +101,86 @@
   });
   const nameOf = (id: string) => catalog?.tools.find((x) => x.id === id)?.name ?? id;
 
-  // Disposition de la grille (6 tuiles au plus par ligne, ou par colonne si verticale).
-  const MAX_PER_LINE = 6;
-  const gridStyle = $derived.by(() => {
-    const n = installed.length + 1;
-    if (prefs.vertical) {
-      const rows = Math.min(n, MAX_PER_LINE);
-      return `grid-auto-flow: column; grid-template-rows: repeat(${rows}, 44px); grid-template-columns: none;`;
-    }
-    return `grid-template-columns: repeat(${Math.min(n, MAX_PER_LINE)}, 44px);`;
+  // Taille des tuiles : celle enregistrée, ou celle en cours pendant qu'on tire un coin.
+  const TILE_MIN = 28;
+  const TILE_MAX = 112;
+  const TILE_DEFAULT = 44;
+  let liveTile = $state<number | null>(null);
+  const tile = $derived(liveTile ?? prefs.tile ?? TILE_DEFAULT);
+  $effect(() => {
+    document.documentElement.style.setProperty('--tile', `${tile}px`);
   });
 
-  // La fenêtre suit le nombre de tuiles (« + » comprise), l'orientation, et s'agrandit pour un message.
+  // Disposition de la grille (6 tuiles au plus par ligne, ou par colonne si verticale).
+  const MAX_PER_LINE = 6;
+  function lines() {
+    const n = installed.length + 1;
+    const perLine = Math.min(n, MAX_PER_LINE);
+    const others = Math.ceil(n / perLine);
+    return prefs.vertical ? { cols: others, rows: perLine } : { cols: perLine, rows: others };
+  }
+  const gridStyle = $derived.by(() => {
+    const { cols, rows } = lines();
+    if (prefs.vertical) {
+      return `grid-auto-flow: column; grid-template-rows: repeat(${rows}, ${tile}px); grid-template-columns: none;`;
+    }
+    return `grid-template-columns: repeat(${cols}, ${tile}px);`;
+  });
+
+  // La fenêtre suit le nombre de tuiles (« + » comprise), l'orientation, la taille des tuiles,
+  // et s'agrandit pour un message. Pendant qu'on tire un coin, c'est ce glisser qui la règle.
   $effect(() => {
     void prefs.vertical;
-    toolbarFit(installed.length + 1, notice !== '');
+    void prefs.tile;
+    if (liveTile !== null) return;
+    toolbarFit(installed.length + 1, notice !== '').catch(() => {});
   });
+
+  // ---------- Tirer un coin pour changer la taille des tuiles ----------
+  let resize: { corner: Corner; x: number; y: number; tile: number; cols: number; rows: number } | null = null;
+  let resizeFrame = 0;
+  const clampTile = (v: number) => Math.min(TILE_MAX, Math.max(TILE_MIN, Math.round(v)));
+
+  function onCornerDown(e: PointerEvent, corner: Corner) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    resize = { corner, x: e.screenX, y: e.screenY, tile, ...lines() };
+    liveTile = tile;
+  }
+  function onCornerMove(e: PointerEvent) {
+    if (!resize) return;
+    // Tirer vers l'extérieur agrandit, quel que soit le coin.
+    const dx = (e.screenX - resize.x) * (resize.corner.endsWith('Left') ? -1 : 1);
+    const dy = (e.screenY - resize.y) * (resize.corner.startsWith('top') ? -1 : 1);
+    const byWidth = dx / resize.cols;
+    const byHeight = dy / resize.rows;
+    const next = clampTile(resize.tile + (Math.abs(byWidth) >= Math.abs(byHeight) ? byWidth : byHeight));
+    if (next === liveTile) return;
+    liveTile = next;
+    const corner = resize.corner;
+    cancelAnimationFrame(resizeFrame);
+    resizeFrame = requestAnimationFrame(() => {
+      if (liveTile !== null) toolbarResize(liveTile, installed.length + 1, notice !== '', corner, false).catch(() => {});
+    });
+  }
+  function onCornerUp() {
+    if (!resize || liveTile === null) return;
+    cancelAnimationFrame(resizeFrame);
+    const final = liveTile;
+    const corner = resize.corner;
+    resize = null;
+    prefs = { ...prefs, tile: final };
+    liveTile = null;
+    toolbarResize(final, installed.length + 1, notice !== '', corner, true).catch((err) => showNotice(String(err)));
+  }
+  // Double-clic sur un coin : taille d'origine.
+  function onCornerReset(corner: Corner) {
+    prefs = { ...prefs, tile: TILE_DEFAULT };
+    toolbarResize(TILE_DEFAULT, installed.length + 1, notice !== '', corner, true).catch((err) => showNotice(String(err)));
+  }
+  const CORNERS: Corner[] = ['topLeft', 'topRight', 'bottomLeft', 'bottomRight'];
 
   // ---------- Glisser une tuile pour changer l'ordre ----------
   const DRAG_THRESHOLD = 6;
@@ -358,6 +425,19 @@
   </li>
 </ul>
 
+{#each CORNERS as corner (corner)}
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="corner {corner}"
+    title={t(lang, 'toolbar.resizeHint')}
+    onpointerdown={(e) => onCornerDown(e, corner)}
+    onpointermove={onCornerMove}
+    onpointerup={onCornerUp}
+    onpointercancel={onCornerUp}
+    ondblclick={() => onCornerReset(corner)}
+  ></div>
+{/each}
+
 {#if notice}
   <div class="notice" role="status">
     <p>{notice}</p>
@@ -398,15 +478,15 @@
     margin: 0;
     padding: 6px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, 44px);
+    grid-template-columns: repeat(auto-fill, var(--tile, 44px));
     gap: 4px;
   }
 
   .tile {
     position: relative;
-    width: 44px;
-    height: 44px;
-    padding: 3px;
+    width: var(--tile, 44px);
+    height: var(--tile, 44px);
+    padding: calc(var(--tile, 44px) * 0.07);
     border: 1px solid var(--line);
     border-radius: 0;
     background: linear-gradient(#343025, #25251e);
@@ -450,7 +530,7 @@
 
   .initial {
     font-family: var(--font-paint);
-    font-size: 22px;
+    font-size: calc(var(--tile, 44px) * 0.5);
     color: var(--text);
   }
 
@@ -458,8 +538,8 @@
     position: absolute;
     top: 2px;
     right: 2px;
-    width: 9px;
-    height: 9px;
+    width: max(7px, calc(var(--tile, 44px) * 0.2));
+    height: max(7px, calc(var(--tile, 44px) * 0.2));
     border-radius: 50%;
     background: var(--accent);
     border: 1px solid #1f241b;
@@ -473,8 +553,8 @@
     transform: translateX(-50%);
     padding: 0 3px;
     border-radius: 0;
-    font-size: 8px;
-    line-height: 10px;
+    font-size: max(7px, calc(var(--tile, 44px) * 0.18));
+    line-height: 1.25;
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -484,8 +564,8 @@
   }
 
   .add svg {
-    width: 20px;
-    height: 20px;
+    width: calc(var(--tile, 44px) * 0.45);
+    height: calc(var(--tile, 44px) * 0.45);
     stroke: var(--text-muted);
     stroke-width: 2;
     stroke-linecap: round;
@@ -532,6 +612,47 @@
       animation: none;
       box-shadow: 0 0 0 1px var(--accent);
     }
+  }
+
+  /* Coins à tirer pour changer la taille des tuiles : une petite équerre au survol. */
+  .corner {
+    position: fixed;
+    width: 12px;
+    height: 12px;
+    z-index: 5;
+    touch-action: none;
+  }
+  .corner.topLeft {
+    top: 0;
+    left: 0;
+    cursor: nwse-resize;
+    border-top: 2px solid transparent;
+    border-left: 2px solid transparent;
+  }
+  .corner.topRight {
+    top: 0;
+    right: 0;
+    cursor: nesw-resize;
+    border-top: 2px solid transparent;
+    border-right: 2px solid transparent;
+  }
+  .corner.bottomLeft {
+    bottom: 0;
+    left: 0;
+    cursor: nesw-resize;
+    border-bottom: 2px solid transparent;
+    border-left: 2px solid transparent;
+  }
+  .corner.bottomRight {
+    bottom: 0;
+    right: 0;
+    cursor: nwse-resize;
+    border-bottom: 2px solid transparent;
+    border-right: 2px solid transparent;
+  }
+  .corner:hover,
+  .corner:active {
+    border-color: var(--accent);
   }
 
   /* Bande de message (40 px, voir MESSAGE_HEIGHT dans toolbar.rs). */

@@ -38,7 +38,7 @@
   }
   let { lang, tools, isInstalled, icons, widgets, layouts, layoutKeys, followDofus, onLayouts, onError }: Props = $props();
 
-  let prefs = $state<ToolbarPrefs>({ hidden: [], shown: [], modes: {}, order: [], vertical: false });
+  let prefs = $state<ToolbarPrefs>({ hidden: [], shown: [], modes: {}, order: [], vertical: false, tile: 44 });
 
   onMount(() => {
     getToolbarPrefs()

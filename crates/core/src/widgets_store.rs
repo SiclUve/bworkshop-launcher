@@ -108,6 +108,19 @@ pub struct ToolbarState {
     pub order: Vec<String>,
     /// Tuiles en colonne plutôt qu'en ligne.
     pub vertical: bool,
+    /// Taille des tuiles en pixels logiques, choisie en tirant un coin de la barre
+    /// (0 : taille par défaut). Toujours lue avec `tile_size()`.
+    pub tile: u32,
+}
+
+/// Tailles possibles d'une tuile de la barre, en pixels logiques.
+pub const TILE_MIN: u32 = 28;
+pub const TILE_MAX: u32 = 112;
+pub const TILE_DEFAULT: u32 = 44;
+
+/// Taille de tuile ramenée dans les bornes (0 ou absente : taille par défaut).
+pub fn clamp_tile(tile: u32) -> u32 {
+    if tile == 0 { TILE_DEFAULT } else { tile.clamp(TILE_MIN, TILE_MAX) }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -128,6 +141,10 @@ impl Default for WidgetsFile {
 }
 
 impl ToolbarState {
+    pub fn tile_size(&self) -> u32 {
+        clamp_tile(self.tile)
+    }
+
     /// L'outil a-t-il une tuile ? Installé : oui sauf s'il a été retiré. Web seulement :
     /// s'il a été ajouté.
     pub fn in_bar(&self, id: &str, installed: bool) -> bool {
@@ -263,5 +280,15 @@ mod tests {
         t.set_in_bar("forge", true);
         assert!(t.in_bar("forge", true));
         assert_eq!(t.hidden, Vec::<String>::new());
+    }
+
+    #[test]
+    fn taille_des_tuiles() {
+        // Fichier d'une version précédente, sans taille : taille par défaut.
+        let t: ToolbarState = serde_json::from_str(r#"{"open":true}"#).unwrap();
+        assert_eq!(t.tile_size(), TILE_DEFAULT);
+        assert_eq!(clamp_tile(5), TILE_MIN);
+        assert_eq!(clamp_tile(500), TILE_MAX);
+        assert_eq!(clamp_tile(60), 60);
     }
 }
