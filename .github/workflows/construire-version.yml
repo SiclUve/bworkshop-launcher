@@ -19,6 +19,10 @@ on:
       notes:
         description: "Ce qui change, en une phrase (montré aux joueurs)"
         required: true
+      essai:
+        description: "Essai : tout construire sans rien publier (fichiers dans l'onglet Actions)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write      # tag v<version> sur le commit construit
@@ -46,7 +50,7 @@ jobs:
           if ($pkg -ne $v -or $cargo -ne $v) {
             throw "Versions différentes : tauri.conf.json $v, package.json $pkg, Cargo.toml $cargo"
           }
-          if (git ls-remote --tags origin "refs/tags/v$v") {
+          if ('${{ inputs.essai }}' -ne 'true' -and (git ls-remote --tags origin "refs/tags/v$v")) {
             throw "Le tag v$v existe déjà : change la version avant de construire."
           }
           "version=$v" >> $env:GITHUB_OUTPUT
@@ -163,12 +167,22 @@ jobs:
           Write-Host "Installateur : $name"
           Write-Host "SHA-256      : $hash"
 
+      - name: Fichiers de l'essai
+        if: ${{ inputs.essai }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: essai-launcher-${{ steps.v.outputs.version }}
+          path: ${{ steps.files.outputs.dir }}
+          retention-days: 7
+
       - name: Attestation de provenance
+        if: ${{ !inputs.essai }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.files.outputs.dir }}/${{ steps.files.outputs.name }}
 
       - name: Release en brouillon et tag
+        if: ${{ !inputs.essai }}
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
