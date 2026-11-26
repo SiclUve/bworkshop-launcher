@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { InstallStatus, Lang, ProgressEvent, Tool } from '../shared/ipc';
   import { colon, t } from '../shared/i18n';
+  import { translateError } from '../shared/errors';
 
   interface Props {
     tool: Tool;
@@ -149,7 +150,7 @@
       </div>
     {:else if activity?.phase === 'error'}
       <div class="alert" role="alert">
-        <p><strong>{t(lang, 'phase.error')}{colon(lang).trimEnd()}</strong> {activity.message}</p>
+        <p><strong>{t(lang, 'phase.error')}{colon(lang).trimEnd()}</strong> {translateError(lang, activity.message ?? '')}</p>
         <div class="actions">
           <button class="btn-plank" onclick={retry}>{t(lang, 'action.retry')}</button>
           <button class="btn-line small" onclick={() => onDismiss(tool.id)}>{t(lang, 'action.close')}</button>

@@ -47,6 +47,7 @@
     type Tool,
   } from '../shared/ipc';
   import { colon, t } from '../shared/i18n';
+  import { translateError } from '../shared/errors';
   import { search } from '../shared/fuzzy';
   import ToolCard from './ToolCard.svelte';
   import Shortcuts from './Shortcuts.svelte';
@@ -483,7 +484,7 @@
   {#if error}
     <!-- Au-dessus des boîtes de dialogue : une erreur venue d'elles reste visible. -->
     <p class="error" role="alert">
-      <span>{error}</span>
+      <span>{translateError(lang, error)}</span>
       <button class="error-close" onclick={() => (error = '')} aria-label={t(lang, 'shortcuts.close')} title={t(lang, 'shortcuts.close')}>×</button>
     </p>
   {/if}

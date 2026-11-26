@@ -46,6 +46,7 @@
     type Corner,
   } from '../shared/ipc';
   import { t } from '../shared/i18n';
+  import { translateError } from '../shared/errors';
 
   let catalog = $state<CatalogSnapshot | null>(null);
   let installs = $state<InstallsView>({ statuses: {}, activity: {} });
@@ -68,7 +69,7 @@
   const NOTICE_MS = 7000;
   let noticeTimer: ReturnType<typeof setTimeout> | undefined;
   function showNotice(message: string) {
-    notice = message.replace(/^Error:\s*/, '');
+    notice = translateError(lang, message);
     clearTimeout(noticeTimer);
     noticeTimer = setTimeout(() => (notice = ''), NOTICE_MS);
   }
