@@ -91,7 +91,6 @@ impl Layouts {
         }
         let view = self.view();
         let _ = app.emit_to(crate::state::MAIN_LABEL, EVENT_UPDATED, view.clone());
-        let _ = app.emit_to(crate::widgets::toolbar::LABEL, EVENT_UPDATED, view.clone());
         crate::tray::refresh(app);
         Ok(view)
     }
@@ -199,11 +198,10 @@ pub fn restore_at_startup(app: &AppHandle) {
         return;
     }
     let active = app.state::<Layouts>().view().active;
-    if let Some(i) = active {
-        if let Err(e) = apply(app, i) {
+    if let Some(i) = active
+        && let Err(e) = apply(app, i) {
             log::warn!("Dernière disposition non rouverte : {e}");
         }
-    }
 }
 
 // ---------- Commandes ----------

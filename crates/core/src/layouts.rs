@@ -1,4 +1,4 @@
-﻿//! Dispositions enregistrées : quelles versions web sont ouvertes, où, à quelle taille,
+//! Dispositions enregistrées : quelles versions web sont ouvertes, où, à quelle taille,
 //! avec quelle opacité, repliées ou non, et où est la barre d'outils.
 //!
 //! - Fichier : `%APPDATA%\BworkshopLauncher\layouts.json`, JSON versionné, écriture atomique.
@@ -195,7 +195,12 @@ impl LayoutsStore {
     /// (un fichier illisible est mis de côté).
     pub fn load(&self) -> LayoutsFile {
         match fs::read(&self.path) {
-            Err(_) => LayoutsFile::default(),
+            Err(e) => {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!("Lecture des dispositions impossible ({e}) : aucune disposition");
+                }
+                LayoutsFile::default()
+            }
             Ok(bytes) => match serde_json::from_slice::<LayoutsFile>(&bytes) {
                 Ok(f) => f.normalized(),
                 Err(e) => {

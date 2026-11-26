@@ -34,6 +34,21 @@ pub fn main_exe(entry: &UninstallEntry, declared: Option<&str>) -> Option<PathBu
 /// Lance l'outil, avec son dossier comme dossier courant. Ne l'attend pas :
 /// le processus démarré est rendu à l'appelant (pour savoir s'il tourne encore).
 pub fn launch(exe: &Path) -> io::Result<std::process::Child> {
+    command(exe)?.spawn()
+}
+
+/// Comme [`launch`], mais le processus démarre **suspendu** (Windows) : l'appelant **doit**
+/// le placer dans son groupe de processus puis le reprendre (`running::track` côté
+/// application), sinon il reste figé. Ainsi, aucun processus qu'il ouvrirait dès ses
+/// premières instructions n'échappe au groupe.
+#[cfg(windows)]
+pub fn launch_suspended(exe: &Path) -> io::Result<std::process::Child> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_SUSPENDED: u32 = 0x0000_0004;
+    command(exe)?.creation_flags(CREATE_SUSPENDED).spawn()
+}
+
+fn command(exe: &Path) -> io::Result<Command> {
     if !exe.is_file() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "exécutable introuvable"));
     }
@@ -41,7 +56,7 @@ pub fn launch(exe: &Path) -> io::Result<std::process::Child> {
     if let Some(dir) = exe.parent() {
         cmd.current_dir(dir);
     }
-    cmd.spawn()
+    Ok(cmd)
 }
 
 #[cfg(test)]

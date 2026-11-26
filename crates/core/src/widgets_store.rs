@@ -192,12 +192,19 @@ impl WidgetsStore {
     /// Charge l'état. Ne plante jamais : fichier absent ou illisible → état vide.
     pub fn load(&self) -> WidgetsFile {
         match fs::read(&self.path) {
-            Err(_) => WidgetsFile::default(),
+            Err(e) => {
+                if e.kind() != std::io::ErrorKind::NotFound {
+                    log::warn!("Lecture de l'état des widgets impossible ({e}) : état vide");
+                }
+                WidgetsFile::default()
+            }
             Ok(bytes) => match serde_json::from_slice::<WidgetsFile>(&bytes) {
                 Ok(f) => f.normalized(),
                 Err(e) => {
                     log::warn!("État des widgets illisible ({e}) : ancien fichier mis de côté");
-                    let _ = storage::backup_corrupt(&self.path);
+                    if let Err(e) = storage::backup_corrupt(&self.path) {
+                        log::warn!("Impossible de mettre de côté le fichier corrompu : {e}");
+                    }
                     WidgetsFile::default()
                 }
             },

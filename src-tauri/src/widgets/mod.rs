@@ -117,6 +117,24 @@ pub struct Widgets {
     toolbar_hwnd: Mutex<Option<isize>>,
     /// Fenêtres cachées parce que Dofus n'est plus au premier plan (option « Suivre Dofus »).
     away: Mutex<Vec<isize>>,
+    /// Fenêtres en cours de création : un second appel simultané ne crée pas de doublon.
+    opening: Mutex<BTreeSet<String>>,
+    /// Tenu pendant l'écriture du fichier (voir `flush`).
+    saving: Mutex<()>,
+}
+
+/// Réservation d'une fenêtre en cours de création, rendue à la fin (succès ou erreur).
+pub(crate) struct Opening<'a> {
+    set: &'a Mutex<BTreeSet<String>>,
+    label: String,
+}
+
+impl Drop for Opening<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut s) = self.set.lock() {
+            s.remove(&self.label);
+        }
+    }
 }
 
 impl Widgets {
@@ -132,7 +150,15 @@ impl Widgets {
             saver: Mutex::new(None),
             toolbar_hwnd: Mutex::new(None),
             away: Mutex::new(Vec::new()),
+            opening: Mutex::new(BTreeSet::new()),
+            saving: Mutex::new(()),
         }
+    }
+
+    /// Réserve la création de la fenêtre `label` ; `None` si elle est déjà en cours.
+    pub(crate) fn begin_opening(&self, label: &str) -> Option<Opening<'_>> {
+        let mut s = self.opening.lock().ok()?;
+        s.insert(label.to_string()).then(|| Opening { set: &self.opening, label: label.to_string() })
     }
 
     // ---------- Lecture ----------
@@ -214,11 +240,10 @@ impl Widgets {
     }
 
     fn touch(&self) {
-        if let Ok(s) = self.saver.lock() {
-            if let Some(tx) = s.as_ref() {
+        if let Ok(s) = self.saver.lock()
+            && let Some(tx) = s.as_ref() {
                 let _ = tx.send(());
             }
-        }
     }
 
     fn mark_moved(&self, id: &str) {
@@ -254,6 +279,9 @@ impl Widgets {
                 }
             }
         }
+        // Copie et écriture sous un même verrou : deux enregistrements simultanés écrivent
+        // dans l'ordre de leurs copies (la plus récente en dernier), jamais l'inverse.
+        let Ok(_saving) = self.saving.lock() else { return };
         let snapshot = match self.file.lock() {
             Ok(f) => f.clone(),
             Err(_) => return,
@@ -278,6 +306,8 @@ impl Widgets {
             native::show_no_activate(hwnd);
             return Ok(());
         }
+        // Déjà en cours de création (double clic, rappel de disposition…) : rien de plus.
+        let Some(_opening) = self.begin_opening(&window_label(id)) else { return Ok(()) };
 
         let tool = app
             .state::<AppState>()
@@ -307,7 +337,6 @@ impl Widgets {
             let mut f = self.file.lock().map_err(|_| "État des widgets indisponible.")?;
             let locked = f.locked;
             let st = f.widget_mut(id);
-            st.open = true;
             let rect = if st.collapsed && !st.pill.placements.is_empty() {
                 st.pill.restore(&monitors, DEFAULT_WIDGET)
             } else {
@@ -346,7 +375,14 @@ impl Widgets {
             return Err(format!("Vues du widget non créées : {e}"));
         }
 
-        let hwnd = native::hwnd(&window).ok_or("Fenêtre du widget introuvable.")?;
+        let Some(hwnd) = native::hwnd(&window) else {
+            let _ = window.destroy();
+            return Err("Fenêtre du widget introuvable.".into());
+        };
+        // Noté ouvert seulement une fois la fenêtre bien créée.
+        if let Ok(mut f) = self.file.lock() {
+            f.widget_mut(id).open = true;
+        }
         if let Ok(mut live) = self.live.lock() {
             live.insert(id.to_string(), Live { name: tool.name.clone(), hwnd: hwnd.0 as isize, settings_open: false });
         }
@@ -372,12 +408,11 @@ impl Widgets {
             native::apply_style(hwnd, opacity, locked);
             let w = app2.state::<Widgets>();
             w.layout(&app2, &id2);
-            if collapsed {
-                if let Some(web) = app2.get_webview(&web_label(&id2)) {
+            if collapsed
+                && let Some(web) = app2.get_webview(&web_label(&id2)) {
                     let _ = web.hide();
                     native::suspend(&web);
                 }
-            }
             if !hidden {
                 native::show_no_activate(hwnd);
             }
@@ -493,11 +528,10 @@ impl Widgets {
                 st.window.restore(&monitors, DEFAULT_WIDGET)
             }
         };
-        if let Ok(mut l) = self.live.lock() {
-            if let Some(w) = l.get_mut(id) {
+        if let Ok(mut l) = self.live.lock()
+            && let Some(w) = l.get_mut(id) {
                 w.settings_open = false;
             }
-        }
         let web = app.get_webview(&web_label(id));
         if collapsed {
             native::set_fixed_size(hwnd, PILL_SIZE.0, PILL_SIZE.1);
@@ -539,11 +573,10 @@ impl Widgets {
     }
 
     pub fn set_settings_open(&self, app: &AppHandle, id: &str, open: bool) {
-        if let Ok(mut l) = self.live.lock() {
-            if let Some(w) = l.get_mut(id) {
+        if let Ok(mut l) = self.live.lock()
+            && let Some(w) = l.get_mut(id) {
                 w.settings_open = open;
             }
-        }
         self.layout(app, id);
         self.emit_bar(app, id);
     }
@@ -580,6 +613,7 @@ impl Widgets {
             }
         }
         self.emit_updated(app);
+        crate::tray::refresh(app); // libellé « Tout cacher » / « Tout montrer »
     }
 
     /// Réaffiche les derniers widgets : ceux qui sont cachés, sinon ceux

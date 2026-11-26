@@ -4,8 +4,8 @@
 
 use crate::geometry::Rect;
 
-/// Motif par défaut si le réglage est vide.
-pub const DEFAULT_PATTERN: &str = "Dofus";
+/// Motif par défaut si le réglage est vide (le même que celui des réglages).
+use crate::settings::DEFAULT_DOFUS_PATTERN as DEFAULT_PATTERN;
 
 /// Distance d'aimantation, en pixels logiques (multipliée par l'échelle de l'écran).
 pub const SNAP_DISTANCE: f64 = 12.0;
@@ -84,8 +84,9 @@ pub fn snap_many(moving: Rect, targets: &[Rect], distance: i32) -> Rect {
     )
 }
 
-/// Aimante `moving` aux bords d'un seul rectangle.
-pub fn snap(moving: Rect, target: Rect, distance: i32) -> Rect {
+/// Aimante `moving` aux bords d'un seul rectangle (tests).
+#[cfg(test)]
+fn snap(moving: Rect, target: Rect, distance: i32) -> Rect {
     snap_many(moving, &[target], distance)
 }
 

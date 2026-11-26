@@ -200,16 +200,24 @@ fn web_url_for(id: &str, kinds: &[String], raw: Option<String>, fallback: Option
     from_catalog.or_else(|| fallback.map(str::to_string))
 }
 
-/// Version overlay : champ `overlayUrl` du catalogue (domaine autorisé), sinon déduite de la
-/// version web (voir `web_urls::OVERLAY_QUERIES`).
 /// Installable depuis le launcher : un lien accepté **et** une empreinte SHA-256 (sans elle,
 /// l'installation est toujours refusée : pas de bouton qui échouerait à coup sûr).
 fn installable(download: &Option<Download>) -> bool {
     download.as_ref().is_some_and(|d| d.sha256.is_some())
 }
 
+/// Version overlay : champ `overlayUrl` du catalogue, sinon déduite de la version web (voir
+/// `web_urls::overlay_for`). Le champ est accepté s'il est sur le même hôte que la version
+/// web (même règle qu'elle), sinon seulement sur un domaine autorisé.
 fn overlay_url_for(id: &str, raw: Option<String>, web_url: Option<&str>) -> Option<String> {
-    optional_link(id, "overlayUrl", raw, icon_url).or_else(|| web_url.and_then(|w| web_urls::overlay_for(id, w)))
+    let web_host = web_url.and_then(|w| Url::parse(w).ok()).and_then(|u| u.host_str().map(str::to_ascii_lowercase));
+    let checked = raw.filter(|r| !r.trim().is_empty()).and_then(|r| {
+        let same_host = https_url(&r)
+            .ok()
+            .filter(|u| Url::parse(u).ok().and_then(|p| p.host_str().map(str::to_ascii_lowercase)) == web_host && web_host.is_some());
+        same_host.or_else(|| optional_link(id, "overlayUrl", Some(r), icon_url))
+    });
+    checked.or_else(|| web_url.and_then(|w| web_urls::overlay_for(id, w)))
 }
 
 impl RawOfficialApp {

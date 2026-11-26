@@ -12,11 +12,11 @@ use std::sync::{Mutex, OnceLock};
 use tauri::{Webview, Window};
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
-use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowLongW, GetWindowRect, IsWindowVisible, SetLayeredWindowAttributes, SetWindowLongW, SetWindowPos,
     ShowWindow, GWL_EXSTYLE, LWA_ALPHA, MINMAXINFO, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-    SWP_NOZORDER, SW_HIDE, SW_SHOWNOACTIVATE, WM_GETMINMAXINFO, WM_MOVING, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
+    SWP_NOZORDER, SW_HIDE, SW_SHOWNOACTIVATE, WM_GETMINMAXINFO, WM_MOVING, WM_NCDESTROY, WS_EX_LAYERED, WS_EX_TOOLWINDOW,
     WS_EX_TRANSPARENT,
 };
 
@@ -179,6 +179,12 @@ unsafe extern "system" fn subclass_proc(
     _data: usize,
 ) -> LRESULT {
     let result = unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
+    // Fenêtre détruite : on retire la sous-classe et ce qu'on retenait pour elle.
+    if msg == WM_NCDESTROY {
+        let _ = unsafe { RemoveWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID) };
+        forget_size_rules(hwnd);
+        return result;
+    }
     if msg == WM_MOVING && lparam.0 != 0 && snap_moving(hwnd, lparam) {
         return LRESULT(1);
     }
@@ -208,11 +214,10 @@ unsafe extern "system" fn subclass_proc(
 /// Sous-classe **notre propre fenêtre** (widget ou barre) : taille minimale (`WM_GETMINMAXINFO`)
 /// et aimantation pendant un déplacement (`WM_MOVING`).
 pub fn install_subclass(hwnd: HWND) {
-    if let Ok(mut w) = SNAP_WINDOWS.lock() {
-        if !w.contains(&(hwnd.0 as isize)) {
+    if let Ok(mut w) = SNAP_WINDOWS.lock()
+        && !w.contains(&(hwnd.0 as isize)) {
             w.push(hwnd.0 as isize);
         }
-    }
     unsafe {
         if !SetWindowSubclass(hwnd, Some(subclass_proc), SUBCLASS_ID, 0).as_bool() {
             log::warn!("Taille minimale des widgets non appliquée (sous-classement refusé)");

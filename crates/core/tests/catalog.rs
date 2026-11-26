@@ -1,4 +1,4 @@
-﻿//! Tests du service de catalogue avec un faux client HTTP (aucun accès réseau).
+//! Tests du service de catalogue avec un faux client HTTP (aucun accès réseau).
 
 use bworkshop_core::catalog::parse::{parse_community, parse_official};
 use bworkshop_core::catalog::{CatalogService, HttpGet, HttpResponse, Source, SourceState};

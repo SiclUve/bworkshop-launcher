@@ -50,6 +50,8 @@ fn configured() -> bool {
 }
 
 /// Le module à brancher au démarrage, seulement si une clé publique est embarquée.
+/// La clé vient de `updater-key.pub`. Le champ `"pubkey": ""` de `tauri.conf.json` doit
+/// rester (vide) : sans lui, la configuration du module est refusée et le launcher ne démarre pas.
 pub fn plugin() -> Option<tauri::plugin::TauriPlugin<Wry, tauri_plugin_updater::Config>> {
     configured().then(|| tauri_plugin_updater::Builder::new().pubkey(PUBKEY.trim()).build())
 }
@@ -72,17 +74,26 @@ pub fn start(app: &AppHandle) {
     });
 }
 
+/// Attente entre deux vérifications. Elle occupe un fil du réservoir « bloquant » de Tauri
+/// pendant toute sa durée (jusqu'à 6 h) : coût négligeable, sans dépendance directe à tokio.
 async fn tokio_sleep(d: Duration) {
-    // Pas de dépendance directe à tokio : une attente sur un fil à part suffit.
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(d)).await;
 }
 
 fn updater(app: &AppHandle) -> Result<tauri_plugin_updater::Updater, String> {
     let url = ENDPOINT.parse().map_err(|e| format!("{e}"))?;
+    let app_exit = app.clone();
     app.updater_builder()
         .endpoints(vec![url])
         .map_err(|e| e.to_string())?
         .timeout(Duration::from_secs(30))
+        // L'installateur ferme le launcher sans passer par la sortie normale : on enregistre
+        // d'abord ce que la sortie normale aurait enregistré.
+        .on_before_exit(move || {
+            app_exit.state::<crate::widgets::Widgets>().flush(&app_exit);
+            log::info!("Fermeture pour installer la mise à jour");
+            log::logger().flush();
+        })
         .build()
         .map_err(|e| e.to_string())
 }

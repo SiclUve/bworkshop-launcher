@@ -21,32 +21,39 @@ pub enum StorageError {
 
 /// Écrit `value` en JSON dans `path`, de façon atomique.
 pub fn write_json_atomic<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<(), StorageError> {
-    let dir = path
-        .parent()
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "chemin sans dossier parent"))?;
-    fs::create_dir_all(dir)?;
-
-    let mut tmp = tempfile::Builder::new()
-        .prefix(".tmp-")
-        .suffix(".json")
-        .tempfile_in(dir)?;
-    serde_json::to_writer_pretty(tmp.as_file_mut(), value)?;
-    tmp.as_file_mut().write_all(b"\n")?;
-    tmp.as_file().sync_all()?;
-    tmp.persist(path).map_err(|e| e.error)?;
-    Ok(())
+    let mut bytes = serde_json::to_vec_pretty(value)?;
+    bytes.push(b'\n');
+    write_bytes_atomic(path, &bytes)
 }
 
-/// Écrit des octets dans `path`, de façon atomique.
+/// Une écriture à la fois : le fichier temporaire a un nom fixe (`<fichier>.tmp`).
+static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Écrit des octets dans `path`, de façon atomique : d'abord dans `<fichier>.tmp` (nom fixe,
+/// donc pas d'orphelins accumulés après un arrêt brutal), puis remplacement en une fois.
 pub fn write_bytes_atomic(path: &Path, bytes: &[u8]) -> Result<(), StorageError> {
     let dir = path
         .parent()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "chemin sans dossier parent"))?;
     fs::create_dir_all(dir)?;
-    let mut tmp = tempfile::Builder::new().prefix(".tmp-").tempfile_in(dir)?;
-    tmp.as_file_mut().write_all(bytes)?;
-    tmp.as_file().sync_all()?;
-    tmp.persist(path).map_err(|e| e.error)?;
+    let mut name = path
+        .file_name()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "chemin sans nom de fichier"))?
+        .to_owned();
+    name.push(".tmp");
+    let tmp = dir.join(name);
+    let _guard = WRITING.lock().unwrap_or_else(|e| e.into_inner());
+    let written = (|| -> io::Result<()> {
+        let mut file = fs::File::create(&tmp)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
+        fs::rename(&tmp, path)
+    })();
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written?;
     Ok(())
 }
 

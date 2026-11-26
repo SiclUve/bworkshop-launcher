@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { InstallStatus, Lang, ProgressEvent, Tool } from '../shared/ipc';
-  import { t } from '../shared/i18n';
+  import { colon, t } from '../shared/i18n';
 
   interface Props {
     tool: Tool;
@@ -51,7 +51,9 @@
     ].filter((l): l is { url: string; label: string } => !!l.url),
   );
 
-  // Un fichier .exe est traité comme installateur ; le reste est seulement téléchargé.
+  // Avant le téléchargement, seule l'extension est connue : un .exe est annoncé comme
+  // installateur. Le launcher reconnaît le vrai type par la signature du fichier ; si ce
+  // n'en est pas un (logiciel portable), la fiche l'indique (« Téléchargé : dossier ouvert »).
   const isInstaller = $derived(
     !!tool.download && /\.exe$/i.test(tool.download.url.split(/[?#]/)[0]),
   );
@@ -138,9 +140,16 @@
           <button class="btn-line small" onclick={() => onCancel(tool.id)}>{t(lang, 'action.cancel')}</button>
         {/if}
       </div>
+    {:else if activity?.phase === 'downloaded'}
+      <div class="alert" role="status">
+        <p>{t(lang, 'phase.downloaded')}</p>
+        <div class="actions">
+          <button class="btn-line small" onclick={() => onDismiss(tool.id)}>{t(lang, 'action.close')}</button>
+        </div>
+      </div>
     {:else if activity?.phase === 'error'}
       <div class="alert" role="alert">
-        <p><strong>{t(lang, 'phase.error')} :</strong> {activity.message}</p>
+        <p><strong>{t(lang, 'phase.error')}{colon(lang).trimEnd()}</strong> {activity.message}</p>
         <div class="actions">
           <button class="btn-plank" onclick={retry}>{t(lang, 'action.retry')}</button>
           <button class="btn-line small" onclick={() => onDismiss(tool.id)}>{t(lang, 'action.close')}</button>
@@ -315,10 +324,6 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-  }
-  .small {
-    padding: 2px 10px;
-    font-size: 13.5px;
   }
   .progress {
     display: flex;

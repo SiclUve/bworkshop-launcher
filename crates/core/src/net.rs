@@ -15,6 +15,14 @@ use std::time::Duration;
 const MAX_CATALOG_BYTES: u64 = 5 * 1024 * 1024;
 const MAX_REDIRECTS: usize = 10;
 
+/// Fournisseur de cryptographie TLS du processus (ring). À appeler avant de créer un client ;
+/// sans effet s'il est déjà en place (par exemple posé par la mise à jour du launcher).
+pub fn install_tls_provider() {
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+}
+
 pub fn user_agent() -> String {
     format!("BworkshopLauncher/{}", env!("CARGO_PKG_VERSION"))
 }
@@ -45,6 +53,7 @@ pub struct HttpClient {
 
 impl HttpClient {
     pub fn new() -> Result<Self, String> {
+        install_tls_provider();
         let client = Client::builder()
             .https_only(true)
             .redirect(redirect_policy())

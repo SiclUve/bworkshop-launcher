@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import type { Lang } from '../shared/ipc';
   import { t } from '../shared/i18n';
+  import { trapFocus } from '../shared/focus';
 
   interface Props {
     lang: Lang;
@@ -36,7 +37,7 @@
 <svelte:window onkeydown={onKey} />
 
 <div class="backdrop">
-  <div class="card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text" bind:this={card}>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-text" bind:this={card} use:trapFocus>
     <p class="count">{step + 1} / {STEPS.length}</p>
     <h2 id="tour-title">{t(lang, `tour.${STEPS[step]}.title`)}</h2>
     <p id="tour-text">

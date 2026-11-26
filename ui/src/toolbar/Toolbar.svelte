@@ -15,6 +15,7 @@
     toolHasWindow,
     toolbarMainVisible,
     onMainVisible,
+    onSettingsUpdated,
     getRunning,
     onRunningUpdated,
     onCatalogUpdated,
@@ -85,7 +86,7 @@
   const modeOf = (tool: Tool): OpenMode | null => effectiveMode(prefs, tool, isInstalled(tool.id));
   const isOn = (tool: Tool) => (modeOf(tool) === 'app' ? running.includes(tool.id) : webOpen.includes(tool.id));
 
-  // Tuiles affichées (nom gardé pour l'historique : installés ET outils web ajoutés) :
+  // Tuiles affichées (logiciels installés et outils web ajoutés) :
   // d'abord l'ordre choisi, puis favoris, puis ordre du catalogue.
   const installed = $derived.by(() => {
     const tools = (catalog?.tools ?? []).filter((x) => inBar(prefs, x.id, isInstalled(x.id)) && modeOf(x) !== null);
@@ -191,6 +192,7 @@
 
   function onTileDown(e: PointerEvent, tool: Tool) {
     if (e.button !== 0) return;
+    suppressClick = false;
     drag = { id: tool.id, x: e.clientX, y: e.clientY, active: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
@@ -206,6 +208,11 @@
       suppressClick = true;
       if (overId && overId !== drag.id) reorder(drag.id, overId);
     }
+    drag = null;
+    overId = null;
+  }
+  // Glisser interrompu (par le système) : aucun clic ne suit, rien à ignorer ni à déplacer.
+  function onTileCancel() {
     drag = null;
     overId = null;
   }
@@ -297,6 +304,11 @@
       onToolbarNotice(showNotice),
       onToolbarPrefs((p) => (prefs = p)),
       onWidgetsUpdated((w) => (webOpen = w.open)),
+      onSettingsUpdated((s) => {
+        favorites = s.favorites;
+        lang = s.language;
+        document.documentElement.lang = lang;
+      }),
     ];
     return () => {
       document.removeEventListener('contextmenu', noMenu);
@@ -368,7 +380,7 @@
   }
 
   function onHandleDown(e: PointerEvent) {
-    if (e.button === 0) toolbarDrag();
+    if (e.button === 0) toolbarDrag().catch(() => {});
   }
 </script>
 
@@ -388,9 +400,8 @@
         onpointerdown={(e) => onTileDown(e, tool)}
         onpointermove={onTileMove}
         onpointerup={onTileUp}
-        onpointercancel={onTileUp}
+        onpointercancel={onTileCancel}
         class:running={isOn(tool)}
-        class:web={modeOf(tool) !== 'app'}
         class:starting={starting.includes(tool.id)}
         class:stubborn={stubborn.includes(tool.id)}
         aria-pressed={isOn(tool)}
@@ -406,7 +417,7 @@
           <span class="initial" aria-hidden="true">{initial(tool)}</span>
         {/if}
         {#if hasUpdate(tool)}<span class="badge" aria-hidden="true"></span>{/if}
-        {#if modeOf(tool) !== 'app'}<span class="web-mark" aria-hidden="true">web</span>{/if}
+        {#if modeOf(tool) !== 'app'}<span class="web-mark" aria-hidden="true">{t(lang, 'toolbar.webMark')}</span>{/if}
       </button>
     </li>
   {/each}

@@ -21,7 +21,7 @@
     type ToolbarPrefs,
     type WidgetsView,
   } from '../shared/ipc';
-  import { t } from '../shared/i18n';
+  import { colon, t } from '../shared/i18n';
   import LayoutsPanel from './Layouts.svelte';
 
   interface Props {
@@ -67,13 +67,31 @@
     }
   }
 
-  function chooseMode(tool: Tool, mode: OpenMode) {
-    prefs = { ...prefs, modes: { ...prefs.modes, [tool.id]: mode } };
-    run(() => setToolMode(tool.id, mode));
+  // Après un échec, on relit les préférences enregistrées : l'écran ne garde pas un choix
+  // qui n'a pas été pris en compte.
+  async function resync() {
+    prefs = await getToolbarPrefs().catch(() => prefs);
   }
 
-  function setBar(id: string, value: boolean) {
-    run(() => setToolInBar(id, value));
+  async function chooseMode(tool: Tool, mode: OpenMode) {
+    prefs = { ...prefs, modes: { ...prefs.modes, [tool.id]: mode } };
+    try {
+      await setToolMode(tool.id, mode);
+    } catch (e) {
+      onError(String(e));
+      await resync();
+    }
+  }
+
+  async function setBar(el: HTMLInputElement, id: string, installed: boolean) {
+    try {
+      await setToolInBar(id, el.checked);
+    } catch (e) {
+      onError(String(e));
+      await resync();
+    }
+    // La case montre l'état réel (inchangé après un échec).
+    el.checked = inBar(prefs, id, installed);
   }
 
   function open(tool: Tool, installed: boolean) {
@@ -106,8 +124,8 @@
         <li class="row" class:off={!inBar(prefs, tool.id, installed)}>
           <div class="line">
           <label class="check">
-            <input type="checkbox" checked={inBar(prefs, tool.id, installed)} onchange={(e) => setBar(tool.id, e.currentTarget.checked)} />
-            <span class="visually-hidden">{t(lang, 'plugins.inBar')} : {tool.name}</span>
+            <input type="checkbox" checked={inBar(prefs, tool.id, installed)} onchange={(e) => setBar(e.currentTarget, tool.id, installed)} />
+            <span class="visually-hidden">{t(lang, 'plugins.inBar')}{colon(lang)}{tool.name}</span>
           </label>
           {#if icons[tool.id]}
             <img class="icon" src={icons[tool.id]} alt="" />
@@ -125,7 +143,7 @@
           {#if modes.length === 1}
             <p class="only">{t(lang, 'plugins.only', { mode: t(lang, `mode.${modes[0]}`).toLowerCase() })}</p>
           {:else}
-          <div class="modes" role="radiogroup" aria-label="{t(lang, 'plugins.mode')} : {tool.name}">
+          <div class="modes" role="radiogroup" aria-label={`${t(lang, 'plugins.mode')}${colon(lang)}${tool.name}`}>
             {#each modes as m (m)}
               <button
                 type="button"

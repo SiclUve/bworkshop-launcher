@@ -12,3 +12,11 @@ src-tauri/gen/
 
 # Icônes préparées pour le site (à copier dans bworkshop.app, pas dans le launcher)
 /site-icons/
+
+# Journaux, symboles de débogage, réglages d'éditeurs et d'agents
+*.log
+*.pdb
+.idea/
+.vscode/
+.claude/
+CLAUDE.local.md

@@ -143,12 +143,15 @@ impl SettingsStore {
                 Ok(s) => s.normalized(),
                 Err(e) => {
                     log::warn!("Réglages illisibles ({e}) : ancien fichier mis de côté, valeurs par défaut");
-                    if let Err(e) = storage::backup_corrupt(&self.path) {
-                        log::warn!("Impossible de mettre de côté le fichier corrompu : {e}");
-                    }
                     let defaults = Settings::default();
-                    if let Err(e) = self.save(&defaults) {
-                        log::warn!("Impossible d'écrire les réglages par défaut : {e}");
+                    // Copie de côté ratée : on n'écrase pas l'original (il reste récupérable à la main).
+                    match storage::backup_corrupt(&self.path) {
+                        Err(e) => log::warn!("Impossible de mettre de côté le fichier corrompu ({e}) : il est laissé tel quel"),
+                        Ok(_) => {
+                            if let Err(e) = self.save(&defaults) {
+                                log::warn!("Impossible d'écrire les réglages par défaut : {e}");
+                            }
+                        }
                     }
                     defaults
                 }

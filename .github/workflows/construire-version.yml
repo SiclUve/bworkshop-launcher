@@ -78,6 +78,19 @@ jobs:
       - name: Dépendances
         run: npm ci
 
+      - uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: cargo-deny
+
+      - name: Dépendances (licences, sources, interdites)
+        run: cargo deny check bans licenses sources
+
+      # Alertes de sécurité connues : affichées dans le journal, sans bloquer la construction
+      # (une alerte sur une dépendance de Tauri ne se corrige pas ici). À lire avant de publier.
+      - name: Dépendances (alertes de sécurité)
+        continue-on-error: true
+        run: cargo deny check advisories
+
       - name: Tests
         shell: pwsh
         run: |
@@ -108,6 +121,29 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Construction de l'interface en échec." }
           npm run tauri -- build --config $extra -- --locked
           if ($LASTEXITCODE -ne 0) { throw 'Construction en échec.' }
+
+      - name: Contrôler les chemins de la machine de construction
+        shell: pwsh
+        run: |
+          # Aucun chemin de profil Windows ni nom de compte dans l'exécutable ni l'installateur, en
+          # ASCII comme en UTF-16. Restent permis : « ~\.cargo\… » (profil déjà réécrit par
+          # --remap-path-prefix) et le dossier du dépôt (D:\a\…), que Tauri inscrit comme texte et
+          # qui ne contient aucun nom de personne.
+          $files = @('target/release/bworkshop-launcher.exe') + (Get-ChildItem target/release/bundle/nsis -Filter '*-setup.exe').FullName
+          $needles = @('\Users\', '/Users/', $env:USERNAME)
+          $found = $false
+          foreach ($f in $files) {
+            $bytes = [IO.File]::ReadAllBytes($f)
+            $texts = @([Text.Encoding]::GetEncoding(28591).GetString($bytes), [Text.Encoding]::Unicode.GetString($bytes))
+            foreach ($n in $needles) {
+              if ($texts | Where-Object { $_.IndexOf($n, [StringComparison]::OrdinalIgnoreCase) -ge 0 }) {
+                Write-Host "::error::$([IO.Path]::GetFileName($f)) contient « $n »"
+                $found = $true
+              }
+            }
+          }
+          if ($found) { throw 'Chemins de construction trouvés dans les fichiers publiés.' }
+          Write-Host "Aucun chemin de construction dans $($files.Count) fichier(s)."
 
       - name: Préparer les fichiers de la release
         id: files

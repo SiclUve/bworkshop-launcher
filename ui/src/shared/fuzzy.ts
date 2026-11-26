@@ -1,5 +1,5 @@
 // Recherche tolérante : ignore accents et casse, accepte une ou deux fautes de frappe.
-// Utilisée par la fenêtre principale et, au jalon 5, par le panneau Alt+B.
+// Utilisée par la recherche de la fenêtre principale.
 
 /** Minuscules, sans accents, espaces en trop retirés. */
 export function normalize(s: string): string {

@@ -144,7 +144,11 @@ impl RotatingFile {
     pub fn write_line(&mut self, line: &str) -> io::Result<()> {
         let len = line.len() as u64;
         if self.size > 0 && self.size + len > self.max {
-            self.rotate()?;
+            // Rotation ratée mais journal rouvert : on continue d'écrire dedans.
+            if let Err(e) = self.rotate()
+                && self.file.is_none() {
+                    return Err(e);
+                }
         }
         let file = match self.file.as_mut() {
             Some(f) => f,
@@ -159,10 +163,12 @@ impl RotatingFile {
         self.file = None; // fermer avant de renommer (obligatoire sous Windows)
         let old = self.rotated_path();
         let _ = fs::remove_file(&old);
-        fs::rename(&self.path, &old)?;
+        let renamed = fs::rename(&self.path, &old);
+        // Renommage raté (fichier ouvert ailleurs…) : on rouvre quand même le journal pour ne
+        // pas devenir muet ; le prochain essai aura lieu après `max` octets de plus.
         self.file = Some(OpenOptions::new().create(true).append(true).open(&self.path)?);
         self.size = 0;
-        Ok(())
+        renamed
     }
 }
 
@@ -201,11 +207,10 @@ impl Log for FileLogger {
     }
 
     fn flush(&self) {
-        if let Ok(mut f) = self.file.lock() {
-            if let Some(file) = f.file.as_mut() {
+        if let Ok(mut f) = self.file.lock()
+            && let Some(file) = f.file.as_mut() {
                 let _ = file.flush();
             }
-        }
     }
 }
 

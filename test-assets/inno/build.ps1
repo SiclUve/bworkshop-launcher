@@ -1,4 +1,4 @@
-# Construit les installateurs de test (1.0.0 et 1.1.0) à partir de TestTool.iss.
+﻿# Construit les installateurs de test (1.0.0 et 1.1.0) à partir de TestTool.iss.
 # Prérequis : Rust (rustc) et Inno Setup 6.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot

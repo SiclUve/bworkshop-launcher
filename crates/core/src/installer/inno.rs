@@ -1,8 +1,6 @@
 //! Installateurs Inno Setup : reconnaissance, arguments silencieux, codes de sortie.
 
-use super::kind::{contains, read_head};
-use std::io;
-use std::path::Path;
+use super::kind::contains;
 
 /// `/CURRENTUSER` : installation pour l'utilisateur seul, sans droits administrateur, quand
 /// l'installateur laisse le choix (`PrivilegesRequiredOverridesAllowed`). Un installateur Inno
@@ -19,11 +17,6 @@ const DATA_MARKER: &[u8] = b"Inno Setup Setup Data";
 
 pub(crate) fn matches(head: &[u8]) -> bool {
     head.starts_with(b"MZ") && contains(head, LOADER_MARKER) && contains(head, DATA_MARKER)
-}
-
-/// Le fichier est-il un installateur Inno Setup ?
-pub fn is_inno_installer(path: &Path) -> io::Result<bool> {
-    Ok(matches(&read_head(path)?))
 }
 
 /// Codes de sortie documentés d'Inno Setup.
@@ -45,6 +38,14 @@ pub fn exit_code_meaning(code: i32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::installer::kind::read_head;
+    use std::io;
+    use std::path::Path;
+
+    /// Le fichier est-il un installateur Inno Setup ? (L'application passe par `kind::detect`.)
+    fn is_inno_installer(path: &Path) -> io::Result<bool> {
+        Ok(matches(&read_head(path)?))
+    }
 
     #[test]
     fn un_fichier_quelconque_n_est_pas_inno() {

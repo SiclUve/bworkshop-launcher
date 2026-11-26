@@ -217,19 +217,44 @@ unsafe extern "system" fn on_event(
 }
 
 /// Relit le titre de la fenêtre au premier plan un peu plus tard (série `generation`).
+/// Un seul fil, créé au premier besoin, sert toutes les séries (pas un fil par changement
+/// de fenêtre).
 fn schedule_rechecks(generation: u32) {
-    let _ = std::thread::Builder::new().name("suivi-dofus-relecture".into()).spawn(move || {
-        for ms in RECHECK_DELAYS_MS {
-            std::thread::sleep(std::time::Duration::from_millis(ms));
-            if RECHECK_GEN.load(Ordering::SeqCst) != generation {
-                return; // une autre fenêtre est passée devant entre-temps
-            }
-            let id = THREAD_ID.load(Ordering::SeqCst);
-            if id != 0 {
-                let _ = unsafe { PostThreadMessageW(id, WM_RECHECK, WPARAM(generation as usize), LPARAM(0)) };
-            }
-        }
+    static WORKER: OnceLock<Option<std::sync::mpsc::Sender<u32>>> = OnceLock::new();
+    let worker = WORKER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<u32>();
+        std::thread::Builder::new().name("suivi-dofus-relecture".into()).spawn(move || recheck_worker(rx)).ok().map(|_| tx)
     });
+    if let Some(tx) = worker {
+        let _ = tx.send(generation);
+    }
+}
+
+fn recheck_worker(rx: std::sync::mpsc::Receiver<u32>) {
+    use std::sync::mpsc::RecvTimeoutError;
+    while let Ok(mut generation) = rx.recv() {
+        'series: loop {
+            for ms in RECHECK_DELAYS_MS {
+                // Une nouvelle série pendant l'attente remplace celle en cours.
+                match rx.recv_timeout(std::time::Duration::from_millis(ms)) {
+                    Ok(next) => {
+                        generation = next;
+                        continue 'series;
+                    }
+                    Err(RecvTimeoutError::Timeout) => {}
+                    Err(RecvTimeoutError::Disconnected) => return,
+                }
+                if RECHECK_GEN.load(Ordering::SeqCst) != generation {
+                    break 'series; // une autre fenêtre est passée devant entre-temps
+                }
+                let id = THREAD_ID.load(Ordering::SeqCst);
+                if id != 0 {
+                    let _ = unsafe { PostThreadMessageW(id, WM_RECHECK, WPARAM(generation as usize), LPARAM(0)) };
+                }
+            }
+            break;
+        }
+    }
 }
 
 /// Une fenêtre passe au premier plan : est-ce Dofus, le launcher, ou autre chose ?

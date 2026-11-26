@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import type { Lang, Settings } from '../shared/ipc';
   import { t } from '../shared/i18n';
+  import { trapFocus } from '../shared/focus';
 
   interface Props {
     lang: Lang;
@@ -16,6 +17,15 @@
   let dialog: HTMLDivElement | undefined = $state();
   onMount(() => dialog?.querySelector<HTMLElement>('select')?.focus());
 
+  // Enregistre, puis remet le champ sur la valeur réellement enregistrée (après un échec,
+  // ou une valeur corrigée par le launcher, comme un titre vide remis à « Dofus »).
+  async function save<K extends keyof Settings>(el: HTMLInputElement | HTMLSelectElement, key: K, value: Settings[K]) {
+    await onUpdate({ [key]: value } as Partial<Settings>);
+    const saved = settings[key];
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = Boolean(saved);
+    else el.value = String(saved);
+  }
+
   function onKey(e: KeyboardEvent) {
     if (e.key === 'Escape') onClose();
   }
@@ -25,7 +35,7 @@
 
 {#snippet toggle(key: 'autostart' | 'followDofus' | 'snapping' | 'onlyWhenDofusForeground' | 'reopenLastLayout', label: string, hint: string)}
   <label class="option">
-    <input type="checkbox" checked={settings[key]} onchange={(e) => onUpdate({ [key]: e.currentTarget.checked })} />
+    <input type="checkbox" checked={settings[key]} onchange={(e) => save(e.currentTarget, key, e.currentTarget.checked)} />
     <span>
       <span class="name">{label}</span>
       {#if hint}<span class="hint serious">{hint}</span>{/if}
@@ -34,7 +44,7 @@
 {/snippet}
 
 <div class="backdrop">
-  <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="settings-title" bind:this={dialog}>
+  <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="settings-title" bind:this={dialog} use:trapFocus>
     <header class="dialog-head">
       <h2 id="settings-title">{t(lang, 'settings.title')}</h2>
       <button class="dialog-close" onclick={onClose} aria-label={t(lang, 'shortcuts.close')} title={t(lang, 'shortcuts.close')}>×</button>
@@ -44,7 +54,7 @@
       <h3>{t(lang, 'settings.general')}</h3>
       <label class="option lang">
         <span class="name">{t(lang, 'settings.language')}</span>
-        <select value={settings.language} onchange={(e) => onUpdate({ language: e.currentTarget.value as Lang })}>
+        <select value={settings.language} onchange={(e) => save(e.currentTarget, 'language', e.currentTarget.value as Lang)}>
           <option value="fr">Français</option>
           <option value="en">English</option>
         </select>
@@ -70,7 +80,7 @@
               value={settings.dofusTitlePattern}
               maxlength="60"
               spellcheck="false"
-              onchange={(e) => onUpdate({ dofusTitlePattern: e.currentTarget.value })}
+              onchange={(e) => save(e.currentTarget, 'dofusTitlePattern', e.currentTarget.value)}
             />
           </label>
         {/if}

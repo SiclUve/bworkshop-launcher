@@ -27,7 +27,7 @@ const ALREADY_REGISTERED: i32 = 0x8007_0581_u32 as i32;
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HotkeyStatus {
-    /// « togglePanel », « toggleHideAll », « toggleLock » ou « tool:<id> ».
+    /// « togglePanel », « toggleHideAll », « toggleLock », « layout:<n> » ou « tool:<id> ».
     pub action: String,
     /// Forme normalisée, si le raccourci est valide.
     pub hotkey: Option<String>,

@@ -17,12 +17,20 @@ pub fn get_settings(state: State<'_, AppState>) -> Settings {
 
 #[tauri::command]
 pub fn save_settings(app: AppHandle, state: State<'_, AppState>, settings: Settings) -> Result<Settings, String> {
+    let previous_autostart = state.settings().autostart;
     let settings = state.replace_settings(settings)?;
-    state::sync_autostart(&app);
+    let autostart = state::sync_autostart(&app);
     tray::refresh(&app); // la langue du menu a pu changer
     tauri::Manager::state::<crate::widgets::Widgets>(&app).emit_all_bars(&app);
     crate::hotkeys::reload(&app); // les raccourcis ont pu changer
     crate::dofus::reload(); // l'option « Suivre Dofus » a pu changer
+    if let Err(e) = autostart {
+        // Le réglage reprend la valeur réelle : la case ne ment pas.
+        let _ = state.replace_settings(Settings { autostart: previous_autostart, ..settings });
+        state::emit_settings(&app);
+        return Err(e);
+    }
+    state::emit_settings(&app);
     Ok(settings)
 }
 
@@ -64,14 +72,16 @@ pub async fn refresh_catalog(app: AppHandle) -> Result<Option<CatalogSnapshot>, 
 
 /// Ajoute ou retire un favori.
 #[tauri::command]
-pub fn toggle_favorite(state: State<'_, AppState>, id: String) -> Result<Settings, String> {
+pub fn toggle_favorite(app: AppHandle, state: State<'_, AppState>, id: String) -> Result<Settings, String> {
     let mut settings = state.settings();
     if let Some(pos) = settings.favorites.iter().position(|f| f == &id) {
         settings.favorites.remove(pos);
     } else {
         settings.favorites.push(id);
     }
-    state.replace_settings(settings)
+    let saved = state.replace_settings(settings)?;
+    state::emit_settings(&app);
+    Ok(saved)
 }
 
 // ---------- Installation ----------

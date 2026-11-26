@@ -51,7 +51,13 @@ pub fn sniff(bytes: &[u8]) -> Option<ImageKind> {
 
 /// SVG : texte dont la première balise (après un éventuel prologue XML) est `<svg`.
 fn is_svg(bytes: &[u8]) -> bool {
-    let Ok(text) = std::str::from_utf8(&bytes[..bytes.len().min(1024)]) else { return false };
+    // Début du fichier seulement : un caractère accentué coupé à la limite n'est pas une erreur.
+    let head = &bytes[..bytes.len().min(1024)];
+    let text = match std::str::from_utf8(head) {
+        Ok(t) => t,
+        Err(e) if e.error_len().is_none() => std::str::from_utf8(&head[..e.valid_up_to()]).unwrap_or(""),
+        Err(_) => return false,
+    };
     let mut rest = text.trim_start_matches('\u{feff}').trim_start();
     loop {
         if rest.starts_with("<?") || rest.starts_with("<!--") || rest.starts_with("<!DOCTYPE") || rest.starts_with("<!doctype") {
@@ -139,6 +145,16 @@ mod tests {
     }
 
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\nreste";
+
+    #[test]
+    fn svg_avec_accent_coupe_a_la_limite() {
+        // « é » (2 octets) à cheval sur l'octet 1024 : reste reconnu comme SVG.
+        let mut svg = b"<svg xmlns=\"http://www.w3.org/2000/svg\"><!--".to_vec();
+        svg.resize(1023, b'a');
+        svg.extend_from_slice("é--></svg>".as_bytes());
+        assert!(is_svg(&svg));
+        assert!(!is_svg(&[0xff, 0xfe, b'<', b's']));
+    }
 
     #[test]
     fn signatures() {

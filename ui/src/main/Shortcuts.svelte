@@ -13,6 +13,7 @@
     type Lang,
   } from '../shared/ipc';
   import { t } from '../shared/i18n';
+  import { trapFocus } from '../shared/focus';
 
   interface Props {
     lang: Lang;
@@ -27,7 +28,7 @@
   const ACTIONS: HotkeyAction[] = ['togglePanel', 'toggleHideAll', 'toggleLock'];
   const DEFAULTS: Record<HotkeyAction, string> = { togglePanel: 'Alt+B', toggleHideAll: 'Alt+H', toggleLock: 'Alt+L' };
 
-  /** Une ligne : clé d'état (« togglePanel » ou « tool:<id> »), libellé, valeur, valeur par défaut. */
+  /** Une ligne : clé d'état (« togglePanel », « layout:<n> » ou « tool:<id> »), libellé, valeur, valeur par défaut. */
   interface Row {
     key: string;
     label: string;
@@ -56,14 +57,19 @@
   let dialog: HTMLDivElement | undefined = $state();
 
   const statusOf = (key: string) => status.find((s) => s.action === key);
+  // Suspension des raccourcis pendant une saisie. Un échec n'est pas bloquant : côté
+  // launcher, la suspension est levée de toute façon à la fermeture de la fenêtre.
+  const suspend = (on: boolean) => suspendHotkeys(on).catch(() => {});
 
   onMount(() => {
-    getHotkeysStatus().then((s) => (status = s));
+    getHotkeysStatus()
+      .then((s) => (status = s))
+      .catch(() => {});
     const off = onHotkeysStatus((s) => (status = s));
     dialog?.querySelector<HTMLButtonElement>('button')?.focus();
     return () => {
       off.then((f) => f());
-      if (capturing) suspendHotkeys(false);
+      if (capturing) suspend(false);
     };
   });
 
@@ -92,12 +98,12 @@
 
   async function startCapture(key: string) {
     capturing = key;
-    await suspendHotkeys(true);
+    await suspend(true);
   }
 
   async function stopCapture() {
     capturing = null;
-    await suspendHotkeys(false);
+    await suspend(false);
   }
 
   async function set(key: string, value: string | null) {
@@ -134,8 +140,11 @@
     const mods = [e.ctrlKey && 'Ctrl', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Win'].filter(Boolean);
     const target = capturing;
     capturing = null;
-    await set(target, [...mods, key].join('+'));
-    await suspendHotkeys(false);
+    try {
+      await set(target, [...mods, key].join('+'));
+    } finally {
+      await suspend(false);
+    }
   }
 </script>
 
@@ -177,7 +186,7 @@
 {/snippet}
 
 <div class="backdrop">
-  <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" bind:this={dialog}>
+  <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" bind:this={dialog} use:trapFocus>
     <header class="dialog-head">
       <h2 id="shortcuts-title">{t(lang, 'shortcuts.title')}</h2>
       <button class="dialog-close" onclick={onClose} aria-label={t(lang, 'shortcuts.close')} title={t(lang, 'shortcuts.close')}>×</button>

@@ -18,7 +18,7 @@ export type HotkeyAction = 'togglePanel' | 'toggleHideAll' | 'toggleLock';
 
 /** État d'un raccourci : actif, ou refusé et pourquoi. */
 export interface HotkeyStatus {
-  /** Action du launcher, ou « tool:<id> ». */
+  /** Action du launcher, « layout:<n> » ou « tool:<id> ». */
   action: string;
   hotkey: string | null;
   active: boolean;
@@ -82,7 +82,7 @@ export interface Tool {
 
 export type SourceState =
   | { state: 'fresh' }
-  | { state: 'cached'; reason: string }
+  | { state: 'cached'; reason: string; offline: boolean }
   | { state: 'unavailable'; reason: string };
 
 export interface CatalogSnapshot {
@@ -144,7 +144,6 @@ export const cancelInstall = (id: string) => invoke<void>('cancel_install', { id
 export const dismissInstallError = (id: string) => invoke<void>('dismiss_install_error', { id });
 export const uninstallTool = (id: string) => invoke<void>('uninstall_tool', { id });
 export const launchTool = (id: string) => invoke<void>('launch_tool', { id });
-/** Logiciels lancés par le launcher et encore ouverts. */
 /** Logiciels lancés par le launcher ; `starting` : encore sans fenêtre. */
 export interface RunningView {
   running: string[];
@@ -260,6 +259,8 @@ export const toolbarToggleMain = () => invoke<boolean>('toolbar_open_main');
 export const toolbarMainVisible = () => invoke<boolean>('toolbar_main_visible');
 export const onMainVisible = (cb: (visible: boolean) => void): Promise<UnlistenFn> =>
   listen<boolean>('main-visible', (e) => cb(e.payload));
+export const onSettingsUpdated = (cb: (s: Settings) => void): Promise<UnlistenFn> =>
+  listen<Settings>('settings-updated', (e) => cb(e.payload));
 
 // ---------- Dispositions ----------
 

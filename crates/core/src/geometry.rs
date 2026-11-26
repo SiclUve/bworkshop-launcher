@@ -141,11 +141,10 @@ pub fn primary(monitors: &[MonitorInfo]) -> Option<&MonitorInfo> {
 ///
 /// Le résultat est toujours ramené dans la zone de travail.
 pub fn restore(saved: &PerMonitor, monitors: &[MonitorInfo], default: Placement) -> Option<Rect> {
-    if let Some(key) = &saved.last_monitor {
-        if let (Some(m), Some(p)) = (monitors.iter().find(|m| &m.key == key), saved.placements.get(key)) {
+    if let Some(key) = &saved.last_monitor
+        && let (Some(m), Some(p)) = (monitors.iter().find(|m| &m.key == key), saved.placements.get(key)) {
             return Some(clamp(from_placement(p, m), m));
         }
-    }
     let m = primary(monitors)?;
     let p = saved.placements.get(&m.key).copied().unwrap_or(default);
     Some(clamp(from_placement(&p, m), m))

@@ -99,8 +99,10 @@ impl RegistrySource for WindowsRegistry {
 }
 
 /// Fausse source pour les tests.
+#[cfg(test)]
 pub struct StaticRegistry(pub Vec<UninstallEntry>);
 
+#[cfg(test)]
 impl RegistrySource for StaticRegistry {
     fn entries(&self) -> Vec<UninstallEntry> {
         self.0.clone()

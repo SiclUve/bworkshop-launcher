@@ -1,0 +1,42 @@
+# Vérifications des dépendances par cargo-deny (lancées par le workflow « Construire une version »).
+# Seule la cible publiée compte : Windows x64.
+
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+
+[advisories]
+version = 2
+# Version retirée de crates.io : refusée.
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# Licences libres compatibles avec la licence MIT du launcher (relevées dans Cargo.lock).
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "MPL-2.0",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# L'arbre de Tauri contient des doublons de version qu'on ne choisit pas : signalés, pas refusés.
+multiple-versions = "warn"
+wildcards = "allow"
+deny = [
+    # Une seule bibliothèque de cryptographie (ring, voir crates/core/Cargo.toml).
+    { name = "aws-lc-rs", reason = "ring est déjà utilisé par la mise à jour du launcher" },
+    { name = "aws-lc-sys", reason = "code C qui garde les chemins de la machine de construction" },
+    { name = "openssl-sys", reason = "TLS par rustls uniquement" },
+]
+
+[sources]
+# Uniquement crates.io : aucune dépendance tirée d'un dépôt git ou d'un autre registre.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

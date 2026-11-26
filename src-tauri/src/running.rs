@@ -62,6 +62,8 @@ struct Entry {
 /// Délai au-delà duquel on cesse d'attendre une fenêtre (logiciel sans fenêtre visible).
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 const READY_POLL: Duration = Duration::from_millis(250);
+/// Vérification du groupe une fois le processus lancé terminé (lanceurs intermédiaires).
+const GROUP_POLL: Duration = Duration::from_secs(1);
 
 /// Ce que la barre affiche : logiciels lancés, et ceux encore sans fenêtre.
 #[derive(Clone, Default, Serialize)]
@@ -123,11 +125,10 @@ impl Running {
     }
 
     fn set_ready(&self, id: &str, pid: u32) {
-        if let Ok(mut p) = self.entries.lock() {
-            if let Some(e) = p.get_mut(id).filter(|e| e.pid == pid) {
+        if let Ok(mut p) = self.entries.lock()
+            && let Some(e) = p.get_mut(id).filter(|e| e.pid == pid) {
                 e.ready = true;
             }
-        }
     }
 }
 
@@ -168,8 +169,8 @@ fn watch_ready(app: AppHandle, id: String, pid: u32) {
     }
 }
 
-/// Suit un processus que le launcher vient de démarrer. Un fil attend sa fin
-/// (attente bloquante : aucun calcul pendant ce temps).
+/// Suit un processus que le launcher vient de démarrer (suspendu, voir `launch::launch_suspended`) :
+/// le place dans un groupe, le reprend, puis un fil attend sa fin (attente bloquante).
 /// Refusé si l'outil tourne déjà : l'entrée existante (et son groupe) ne doit pas être perdue.
 pub fn track(app: &AppHandle, id: &str, mut child: Child) -> Result<(), String> {
     let pid = child.id();
@@ -189,6 +190,12 @@ pub fn track(app: &AppHandle, id: &str, mut child: Child) -> Result<(), String> 
         if job.is_none() {
             log::warn!("{id} : groupe de processus indisponible, seul le processus lancé sera visé");
         }
+        // Reprise après l'entrée dans le groupe ; impossible à reprendre : on ne laisse pas
+        // un processus figé derrière nous.
+        if !native::resume(pid) {
+            let _ = child.kill();
+            return Err("Impossible de démarrer l'outil.".into());
+        }
         p.insert(id.to_string(), Entry { pid, handle, job, close_requested: None, ready: false });
     }
     emit(app);
@@ -196,11 +203,16 @@ pub fn track(app: &AppHandle, id: &str, mut child: Child) -> Result<(), String> 
     let (app, id) = (app.clone(), id.to_string());
     let spawned = std::thread::Builder::new().name(format!("suivi-{id}")).spawn(move || {
         let _ = child.wait();
-        if let Ok(mut p) = app.state::<Running>().entries.lock() {
-            if p.get(&id).is_some_and(|e| e.pid == pid) {
+        // Lanceur intermédiaire (petit programme qui ouvre le vrai logiciel puis se ferme) :
+        // l'outil tourne tant que son groupe contient d'autres processus que le jeu.
+        let pattern = game_pattern(&app);
+        while app.state::<Running>().pids_of(&id, pid, &pattern).is_some_and(|pids| pids.iter().any(|&p| p != pid)) {
+            std::thread::sleep(GROUP_POLL);
+        }
+        if let Ok(mut p) = app.state::<Running>().entries.lock()
+            && p.get(&id).is_some_and(|e| e.pid == pid) {
                 p.remove(&id);
             }
-        }
         // `child` (et sa poignée) n'est libéré qu'ici, après le retrait de l'entrée.
         drop(child);
         log::info!("{id} s'est arrêté");
@@ -396,6 +408,30 @@ mod native {
         let header = buf[0] as u64;
         let listed = ((header >> 32) as usize).min(buf.len() - 1);
         buf[1..=listed].iter().map(|&p| p as u32).collect()
+    }
+
+    /// Reprend le processus démarré suspendu (ses fils d'exécution : un seul à ce stade).
+    /// Vrai si au moins un a été repris.
+    pub fn resume(pid: u32) -> bool {
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::System::Diagnostics::ToolHelp::{
+            CreateToolhelp32Snapshot, Thread32First, Thread32Next, TH32CS_SNAPTHREAD, THREADENTRY32,
+        };
+        use windows::Win32::System::Threading::{OpenThread, ResumeThread, THREAD_SUSPEND_RESUME};
+        let Ok(snap) = (unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) }) else { return false };
+        let mut entry = THREADENTRY32 { dwSize: std::mem::size_of::<THREADENTRY32>() as u32, ..Default::default() };
+        let mut resumed = false;
+        let mut more = unsafe { Thread32First(snap, &mut entry) }.is_ok();
+        while more {
+            if entry.th32OwnerProcessID == pid
+                && let Ok(thread) = unsafe { OpenThread(THREAD_SUSPEND_RESUME, false, entry.th32ThreadID) } {
+                    resumed |= unsafe { ResumeThread(thread) } != u32::MAX;
+                    let _ = unsafe { CloseHandle(thread) };
+                }
+            more = unsafe { Thread32Next(snap, &mut entry) }.is_ok();
+        }
+        let _ = unsafe { CloseHandle(snap) };
+        resumed
     }
 
     /// Arrête tous les processus du groupe.

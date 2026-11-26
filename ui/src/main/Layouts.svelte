@@ -15,6 +15,7 @@
     type LayoutsView,
   } from '../shared/ipc';
   import { t } from '../shared/i18n';
+  import { trapFocus } from '../shared/focus';
 
   interface Props {
     lang: Lang;
@@ -35,6 +36,8 @@
   let name = $state('');
   let renaming = $state<number | null>(null);
   let renameText = $state('');
+  // Nom d'origine de la disposition renommée : la liste peut changer pendant la saisie.
+  let renameFrom = '';
   let confirmDelete = $state<number | null>(null);
   let dialog: HTMLElement | undefined = $state();
 
@@ -63,9 +66,15 @@
     name = '';
   }
 
+  // Appelée par Entrée puis par la perte du focus : seul le premier appel compte, et
+  // Échap (qui remet `renaming` à null avant la perte du focus) annule vraiment.
   async function finishRename(i: number) {
+    if (renaming !== i) return;
     renaming = null;
-    await run(() => layoutRename(i, renameText));
+    // Liste modifiée entre-temps : on vise la disposition par son nom d'origine.
+    const target = view.layouts[i]?.name === renameFrom ? i : view.layouts.findIndex((x) => x.name === renameFrom);
+    if (target === -1 || renameText === renameFrom) return;
+    await run(() => layoutRename(target, renameText));
   }
 
   function onKey(e: KeyboardEvent) {
@@ -85,7 +94,7 @@
   </section>
 {:else}
   <div class="backdrop">
-    <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="layouts-title" bind:this={dialog}>
+    <div class="dialog frame" role="dialog" aria-modal="true" aria-labelledby="layouts-title" bind:this={dialog} use:trapFocus>
       <header class="dialog-head">
         <h2 id="layouts-title">{t(lang, 'layouts.title')}</h2>
         <button class="dialog-close" onclick={onClose} aria-label={t(lang, 'shortcuts.close')} title={t(lang, 'shortcuts.close')}>×</button>
@@ -187,6 +196,7 @@
                   onclick={() => {
                     renaming = i;
                     renameText = l.name;
+                    renameFrom = l.name;
                     setTimeout(() => dialog?.querySelector<HTMLInputElement>('input.rename')?.select());
                   }}>{t(lang, 'layouts.rename')}</button
                 >

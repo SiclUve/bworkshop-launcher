@@ -77,10 +77,10 @@ impl Widgets {
             }
             return Ok(());
         }
+        let Some(_opening) = self.begin_opening(LABEL) else { return Ok(()) };
         let monitors = monitors(app);
         let (position, tile) = {
-            let mut f = self.file.lock().map_err(|_| "État des widgets indisponible.")?;
-            f.toolbar.open = true;
+            let f = self.file.lock().map_err(|_| "État des widgets indisponible.")?;
             (f.toolbar.position.clone(), f.toolbar.tile_size())
         };
         let (w, h) = size_for(1, false, false, tile);
@@ -100,10 +100,19 @@ impl Widgets {
             .background_color(BACKGROUND)
             .build()
             .map_err(|e| format!("Barre d'outils non créée : {e}"))?;
-        let hwnd = window.hwnd().map_err(|e| e.to_string())?;
+        let hwnd = match window.hwnd() {
+            Ok(h) => h,
+            Err(e) => {
+                let _ = window.destroy();
+                return Err(format!("Barre d'outils introuvable : {e}"));
+            }
+        };
         let raw = hwnd.0 as isize;
         if let Ok(mut h) = self.toolbar_hwnd.lock() {
             *h = Some(raw);
+        }
+        if let Ok(mut f) = self.file.lock() {
+            f.toolbar.open = true;
         }
         let hidden = self.hidden_all.load(Ordering::SeqCst);
         let app2 = app.clone();
@@ -126,11 +135,10 @@ impl Widgets {
     pub fn close_toolbar(&self, app: &AppHandle) {
         self.mark_moved(MOVED_KEY);
         self.flush(app);
-        if let Ok(mut h) = self.toolbar_hwnd.lock() {
-            if let Some(raw) = h.take() {
+        if let Ok(mut h) = self.toolbar_hwnd.lock()
+            && let Some(raw) = h.take() {
                 native::forget_size_rules(HWND(raw as _));
             }
-        }
         if let Ok(mut f) = self.file.lock() {
             f.toolbar.open = false;
         }
@@ -283,11 +291,10 @@ impl Widgets {
         });
         if before != mode && self.view().open.iter().any(|x| x == id) {
             self.close(app, id);
-            if mode != Some(OpenMode::App) {
-                if let Err(e) = self.open(app, id) {
+            if mode != Some(OpenMode::App)
+                && let Err(e) = self.open(app, id) {
                     log::info!("Version web de {id} non rouverte : {e}");
                 }
-            }
         }
     }
 
@@ -307,9 +314,9 @@ impl Widgets {
         let tile = clamp_tile(tile);
         if done {
             self.update_prefs(app, |t| t.tile = tile);
-        } else if let Ok(mut f) = self.file.lock() {
+        } else { if let Ok(mut f) = self.file.lock() {
             f.toolbar.tile = tile;
-        }
+        }}
         self.fit_toolbar_from(app, count, message, dragged);
     }
 }

@@ -1,4 +1,4 @@
-# Construit les installateurs NSIS de test (1.0.0 et 1.1.0) à partir de NsisTool.nsi.
+﻿# Construit les installateurs NSIS de test (1.0.0 et 1.1.0) à partir de NsisTool.nsi.
 # Prérequis : Rust (rustc) et NSIS 3.
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot

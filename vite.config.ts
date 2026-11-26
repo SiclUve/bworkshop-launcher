@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const page = (name: string) => fileURLToPath(new URL(`./ui/${name}.html`, import.meta.url));
 
-// Une page HTML par type de fenêtre (panneau, barre de widget et pastille aux jalons 4-5).
+// Une page HTML par type de fenêtre (fenêtre principale, barre d'outils, barre de widget).
 export default defineConfig({
   root: 'ui',
   plugins: [svelte()],

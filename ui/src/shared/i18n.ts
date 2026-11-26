@@ -51,24 +51,22 @@ const fr = {
   'phase.installing': 'Installation…',
   'phase.uninstalling': 'Désinstallation…',
   'phase.downloaded': 'Téléchargé : dossier ouvert.',
+  'toolbar.webMark': 'web',
   'phase.error': 'Erreur',
   'card.installed': 'installée v{v}',
   'card.upgrade': 'mise à jour v{from} → v{to}',
   'card.available': 'disponible v{v}',
   'card.soon': 'Bientôt',
-  'card.version': 'v{v}',
   'card.favorite.add': 'Ajouter {name} aux favoris',
   'card.favorite.remove': 'Retirer {name} des favoris',
   'card.page': 'Fiche',
   'card.source': 'Code source',
   'card.virustotal': 'VirusTotal',
-  'card.web': 'Version web',
   'status.beta': 'Bêta',
   'status.en-developpement': 'En développement',
   'status.stable': 'Stable',
   'settings.language': 'Langue',
   'settings.autostart': 'Lancer au démarrage de Windows',
-  'layouts.open': 'Dispositions',
   'layouts.title': 'Dispositions',
   'layouts.note':
     'Une disposition garde les versions web ouvertes, leur place, leur taille, leur opacité et la place de la barre. Les quatre premières ont un raccourci ({keys}).',
@@ -149,7 +147,8 @@ const fr = {
   'tour.hotkey.title': 'En jeu : {panel}',
   'tour.hotkey.text': 'Appuie sur {panel} pour afficher ou cacher la barre sans quitter Dofus. Tous les raccourcis se changent dans « Raccourcis », en bas.',
   'tour.web.title': 'Les versions web',
-  'tour.web.text': '« Version web sur le jeu » ouvre un outil en petite fenêtre par-dessus Dofus. Verrouille-les ({lock}) pour que tes clics passent au jeu. Le launcher ne touche jamais au jeu.',  'shortcuts.open': 'Raccourcis',
+  'tour.web.text': '« Version web sur le jeu » ouvre un outil en petite fenêtre par-dessus Dofus. Verrouille-les ({lock}) pour que tes clics passent au jeu. Le launcher ne touche jamais au jeu.',
+  'shortcuts.open': 'Raccourcis',
   'shortcuts.title': 'Raccourcis',
   'shortcuts.close': 'Fermer',
   'shortcuts.note': 'Ils marchent partout, même en jeu. Le launcher les écoute seulement : il n’envoie jamais de touche au jeu. Une combinaison prise ici ne parvient plus aux autres programmes.',
@@ -242,24 +241,22 @@ const en: Record<Key, string> = {
   'phase.installing': 'Installing…',
   'phase.uninstalling': 'Uninstalling…',
   'phase.downloaded': 'Downloaded: folder opened.',
+  'toolbar.webMark': 'web',
   'phase.error': 'Error',
   'card.installed': 'installed v{v}',
   'card.upgrade': 'update v{from} → v{to}',
   'card.available': 'available v{v}',
   'card.soon': 'Coming soon',
-  'card.version': 'v{v}',
   'card.favorite.add': 'Add {name} to favorites',
   'card.favorite.remove': 'Remove {name} from favorites',
   'card.page': 'Page',
   'card.source': 'Source code',
   'card.virustotal': 'VirusTotal',
-  'card.web': 'Web version',
   'status.beta': 'Beta',
   'status.en-developpement': 'In development',
   'status.stable': 'Stable',
   'settings.language': 'Language',
   'settings.autostart': 'Start with Windows',
-  'layouts.open': 'Layouts',
   'layouts.title': 'Layouts',
   'layouts.note':
     'A layout keeps the open web versions, their place, size and opacity, and where the toolbar is. The first four have a shortcut ({keys}).',
@@ -340,7 +337,8 @@ const en: Record<Key, string> = {
   'tour.hotkey.title': 'In game: {panel}',
   'tour.hotkey.text': 'Press {panel} to show or hide the bar without leaving Dofus. All shortcuts can be changed in “Shortcuts”, at the bottom.',
   'tour.web.title': 'Web versions',
-  'tour.web.text': '“Web version over the game” opens a tool in a small window over Dofus. Lock them ({lock}) so your clicks go through to the game. The launcher never touches the game.',  'shortcuts.open': 'Shortcuts',
+  'tour.web.text': '“Web version over the game” opens a tool in a small window over Dofus. Lock them ({lock}) so your clicks go through to the game. The launcher never touches the game.',
+  'shortcuts.open': 'Shortcuts',
   'shortcuts.title': 'Shortcuts',
   'shortcuts.close': 'Close',
   'shortcuts.note': 'They work everywhere, even in game. The launcher only listens to them: it never sends a key to the game. A combination taken here no longer reaches other programs.',
@@ -385,6 +383,9 @@ const dictionaries: Record<Lang, Record<Key, string>> = { fr, en };
 export type I18nKey = Key;
 
 /** Traduit une clé ; `{nom}` est remplacé par `vars.nom`. */
+/** Deux-points selon la langue : espace avant en français (« Erreur : »), pas en anglais. */
+export const colon = (lang: Lang): string => (lang === 'fr' ? ' : ' : ': ');
+
 export function t(lang: Lang, key: Key, vars: Record<string, string> = {}): string {
   const text = dictionaries[lang][key] ?? key;
   return text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);

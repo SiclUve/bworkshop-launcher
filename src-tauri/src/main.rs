@@ -124,7 +124,7 @@ fn main() {
         .setup(move |app| {
             tray::create(app.handle())?;
             app.on_menu_event(|app, event| widgets::toolbar_menu::on_event(app, &event));
-            state::sync_autostart(app.handle());
+            let _ = state::sync_autostart(app.handle()); // erreur déjà journalisée
             catalog_bridge::start(app.handle());
             widgets::Widgets::start(app.handle());
             hotkeys::start(app.handle());

@@ -1,9 +1,10 @@
 //! Opérations d'installation en arrière-plan, avec progression envoyée à l'interface.
 //!
-//! États (partie 5.1) : Non installé → Téléchargement → Vérification → Installation
+//! États : Non installé → Téléchargement → Vérification → Installation
 //! → Installé ; Installé → Mise à jour disponible → Téléchargement → … ; chaque étape
 //! peut finir en Erreur (bouton « Réessayer ») ; un téléchargement peut être annulé.
-//! Les opérations n'ouvrent jamais de fenêtre et ne prennent jamais le focus.
+//! Les opérations ne prennent jamais le focus ; seul un fichier qui n'est pas un installateur
+//! fait ouvrir son dossier dans l'Explorateur (`reveal`).
 
 use crate::state::AppState;
 use bworkshop_core::catalog::Tool;
@@ -82,17 +83,18 @@ fn bridge(app: &AppHandle) -> Arc<InstallerBridge> {
 fn emit(app: &AppHandle, ev: ProgressEvent) {
     let b = bridge(app);
     if let Ok(mut a) = b.activity.lock() {
-        if matches!(ev.phase, Phase::Done | Phase::Cancelled | Phase::Downloaded) {
+        // « Téléchargé » reste affiché (comme une erreur) jusqu'à sa fermeture : le bouton
+        // promettait une installation, la fiche dit ce qui s'est vraiment passé.
+        if matches!(ev.phase, Phase::Done | Phase::Cancelled) {
             a.remove(&ev.id);
         } else {
             a.insert(ev.id.clone(), ev.clone());
         }
     }
-    if ev.phase.is_final() {
-        if let Ok(mut j) = b.jobs.lock() {
+    if ev.phase.is_final()
+        && let Ok(mut j) = b.jobs.lock() {
             j.remove(&ev.id);
         }
-    }
     let _ = app.emit(EVENT_PROGRESS, &ev);
 }
 
@@ -307,13 +309,12 @@ pub fn cancel(app: &AppHandle, id: &str) {
     }
 }
 
-/// Efface une erreur affichée (avant « Réessayer » ou sur fermeture du message).
+/// Efface une erreur ou un « téléchargé » affiché (avant « Réessayer » ou sur fermeture du message).
 pub fn dismiss(app: &AppHandle, id: &str) {
-    if let Ok(mut a) = bridge(app).activity.lock() {
-        if a.get(id).is_some_and(|e| e.phase == Phase::Error) {
+    if let Ok(mut a) = bridge(app).activity.lock()
+        && a.get(id).is_some_and(|e| matches!(e.phase, Phase::Error | Phase::Downloaded)) {
             a.remove(id);
         }
-    }
 }
 
 pub fn uninstall(app: &AppHandle, id: &str) -> Result<(), String> {
@@ -351,7 +352,7 @@ pub fn launch_tool(app: &AppHandle, id: &str) -> Result<(), String> {
     if app.state::<crate::running::Running>().is_running(id) {
         return Err("Cet outil est déjà lancé.".into());
     }
-    let child = launch::launch(&exe).map_err(|e| format!("Impossible de lancer l'outil : {e}"))?;
+    let child = launch::launch_suspended(&exe).map_err(|e| format!("Impossible de lancer l'outil : {e}"))?;
     crate::running::track(app, id, child)?;
     log::info!("{id} lancé");
     Ok(())

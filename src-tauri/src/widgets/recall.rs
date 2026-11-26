@@ -105,7 +105,10 @@ impl Widgets {
 
         // 3. La barre d'outils.
         if let Some(place) = &layout.toolbar {
-            let rect = rect_of(place, dofus, &monitors, Placement { x: 40.0, y: 40.0, w: 56.0, h: 70.0 });
+            // Taille par défaut : celle d'une barre à une tuile (la vraie taille suit ensuite les tuiles).
+            let tile = self.file.lock().map(|f| f.toolbar.tile_size()).unwrap_or(bworkshop_core::widgets_store::TILE_DEFAULT);
+            let (w, h) = super::toolbar::size_for(1, false, false, tile);
+            let rect = rect_of(place, dofus, &monitors, Placement { x: 40.0, y: 40.0, w, h });
             match (self.toolbar_hwnd_for_all(), rect) {
                 (Some(hwnd), Some(r)) => {
                     let raw = hwnd.0 as isize;

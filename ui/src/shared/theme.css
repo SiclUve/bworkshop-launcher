@@ -159,6 +159,8 @@ button:disabled { cursor: default; opacity: 0.55; }
 .btn-line:hover:not(:disabled) { filter: brightness(1.18); }
 .btn-line:active:not(:disabled) { transform: translateY(1px); }
 .btn-line:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Petit bouton (dans une fiche, une ligne de « Mes plugins »…). */
+.btn-line.small { padding: 2px 10px; font-size: 13.5px; }
 /* Enfoncé (version web ouverte…) : bois teinté vert mousse. */
 .btn-line[aria-pressed='true'] {
   background:

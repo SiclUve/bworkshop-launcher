@@ -4,9 +4,9 @@ Gestionnaire des outils Dofus publiés sur [bworkshop.app](https://bworkshop.app
 il les liste, les installe, les met à jour et les lance, et il ouvre leurs
 versions web en petits widgets au-dessus du jeu.
 
-> État : version 0.1.0, fonctionnelle de bout en bout (catalogue, installation, mises
-> à jour, widgets, barre d'outils, dispositions, mise à jour du launcher). La batterie
-> de tests manuels en jeu (plus bas) reste à faire avant une diffusion publique.
+> Fonctionnel de bout en bout : catalogue, installation, mises à jour, widgets, barre
+> d'outils, dispositions, mise à jour du launcher. La version en cours est celle de
+> `package.json` ; l'historique est dans les [releases](https://github.com/SiclUve/bworkshop-releases/releases).
 
 ## Installer
 
@@ -15,7 +15,7 @@ Télécharger `Bworkshop Launcher_<version>_x64-setup.exe` sur bworkshop.app, pu
 - Installation **pour l'utilisateur seul**, sans droits administrateur
   (`%LOCALAPPDATA%\Bworkshop Launcher`), raccourcis dans le menu Démarrer (dossier « Bworkshop ») et sur le Bureau.
 - Le moteur web WebView2, déjà présent sur Windows 10 et 11 à jour, est installé au besoin.
-- Taille : ≈ 2,7 Mo.
+- Taille : ≈ 3 Mo.
 - Désinstallation : Paramètres Windows → Applications. Elle retire aussi le lancement au
   démarrage de Windows. Les outils installés par le launcher restent installés, et tes
   réglages restent dans `%APPDATA%\BworkshopLauncher` (à supprimer à la main si tu veux).
@@ -28,11 +28,14 @@ L'installateur n'est pas signé avec un certificat de signature de code (payant,
 de lui-même quand assez de personnes ont installé le même fichier.
 
 Pour vérifier que le fichier est bien celui publié, compare son empreinte SHA-256 avec
-celle indiquée sur la page de téléchargement :
+celle indiquée sur la page de téléchargement (et dans le fichier `.sha256` de la release) :
 
 ```powershell
-Get-FileHash "$env:USERPROFILE\Downloads\Bworkshop Launcher_0.1.0_x64-setup.exe" -Algorithm SHA256
+Get-FileHash "$env:USERPROFILE\Downloads\Bworkshop.Launcher_<version>_x64-setup.exe" -Algorithm SHA256
 ```
+
+Chaque installateur est construit par GitHub Actions à partir du code publié, avec une
+attestation de provenance vérifiable (voir [SECURITY.md](SECURITY.md)).
 
 Les **mises à jour automatiques**, elles, sont toujours signées (voir plus bas) : le
 launcher refuse toute mise à jour dont la signature ne correspond pas.
@@ -126,11 +129,13 @@ Refusés : une touche seule (sauf F1 à F24), Alt+F4, Alt+Tab, Alt+Espace, Win +
 clic sur la tuile d'un logiciel **que le launcher a lui-même lancé** lui demande de
 se fermer, comme un clic sur sa croix (`WM_CLOSE`, envoyé par `PostMessageW`).
 
-- Seul le logiciel démarré par le launcher est visé. Au lancement, le launcher le place
-  dans un groupe de processus Windows (« job », `CreateJobObjectW` puis
-  `AssignProcessToJobObject` avec la poignée rendue au lancement). Les processus que ce
-  logiciel ouvre lui-même y entrent automatiquement (certains outils démarrent en deux
-  processus), et aucun autre. Quitter le launcher ne ferme pas les logiciels du groupe.
+- Seul le logiciel démarré par le launcher est visé. Il est démarré suspendu, placé dans
+  un groupe de processus Windows (« job », `CreateJobObjectW` puis
+  `AssignProcessToJobObject` avec la poignée rendue au lancement), puis repris
+  (`ResumeThread` sur son propre fil). Les processus que ce logiciel ouvre lui-même y
+  entrent automatiquement, dès sa première instruction, et aucun autre. Un outil qui démarre
+  par un petit lanceur intermédiaire reste suivi tant qu'un processus de son groupe tourne.
+  Quitter le launcher ne ferme pas les logiciels du groupe.
 - Garde-fou : si un outil démarrait lui-même l'Ankama Launcher (et donc Dofus), ces
   processus entreraient dans son groupe. Tout processus du groupe, autre que celui lancé,
   qui a une fenêtre au titre de Dofus ou d'Ankama est donc écarté (titre lu avec
@@ -153,14 +158,14 @@ le launcher ne s'injecte jamais dans un jeu pour contourner ça.
 
 ## Mesures
 
-Mesures du 25/11/2026, version 0.1.0 compilée en `release`, Windows 11, sur la machine
-de développement. Mémoire privée du launcher + des processus du moteur web WebView2 qui
+Mesures du 25/11/2026 (version 0.1.0, installateur ≈ 3 Mo depuis 0.1.4), compilée en
+`release`, Windows 11, sur la machine de développement. Mémoire privée du launcher + des processus du moteur web WebView2 qui
 lui appartiennent (`Get-Process`, processus `msedgewebview2.exe` dont la ligne de commande
 contient `app.bworkshop.launcher`).
 
 | Mesure | Résultat | Objectif |
 |---|---|---|
-| Taille de l'installateur | 2,7 Mo | < 10 Mo |
+| Taille de l'installateur | 2,7 Mo (3,1 Mo en 0.1.4) | < 10 Mo |
 | Démarrage jusqu'à la première fenêtre | 30 à 80 ms | — |
 | Démarrage jusqu'au moteur web prêt | 230 à 400 ms | — |
 | Mémoire, près de l'horloge, rien d'ouvert | ≈ 4 Mo | < 40 Mo |
@@ -201,18 +206,28 @@ La clé privée va dans `%USERPROFILE%\.tauri\bworkshop-launcher.key`, **hors du
 Choisis et note son mot de passe, et garde une copie de secours de la clé : sans elle,
 plus aucune mise à jour ne pourra être publiée pour les launchers déjà installés.
 
-**Publier une version** :
+La clé privée et son mot de passe sont aussi enregistrés comme secrets du dépôt
+(`TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`), avec un jeton limité
+au dépôt des releases (`RELEASES_TOKEN`).
 
-1. Changer la version dans `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` et `package.json`.
-2. `.\scripts\publier-mise-a-jour.ps1 -Notes "Ce qui change, en une phrase."`
-3. Sur GitHub, créer la release `Launcher<version>` avec l'installateur (nom exact donné
-   par le script) et son `.sig`.
-4. Dans la release `launcher-latest`, remplacer `latest.json` par celui produit.
-5. Indiquer le SHA-256 affiché sur la page de téléchargement.
+**Publier une version** (tout se construit sur GitHub, rien sur un PC) :
 
-## Tests manuels avant diffusion
+1. Changer la version, identique partout : `Cargo.toml` (racine, `[workspace.package]`),
+   `src-tauri/tauri.conf.json`, `package.json`, puis `npm install` et `cargo check` pour
+   mettre à jour `package-lock.json` et `Cargo.lock`. Commiter et pousser.
+2. Actions → « Construire une version » : notes en une phrase. La case « Essai » construit
+   tout sans rien publier. Le workflow vérifie la cohérence des versions, lance les tests,
+   construit avec `--locked`, signe, atteste la provenance, crée la release
+   `Launcher<version>` **en brouillon** et pose le tag `v<version>`.
+3. Relire le brouillon (empreinte, signature), puis le publier.
+4. Actions → « Annoncer la mise à jour » avec la version : `latest.json` est copié dans la
+   release `launcher-latest`, et les launchers installés la proposent.
+5. Mettre à jour le lien et le SHA-256 sur la page de téléchargement du site.
 
-À faire en jeu, sur la machine de quelqu'un qui joue :
+## Tests manuels en jeu
+
+À refaire avant une version qui touche aux fenêtres, au suivi de Dofus ou aux raccourcis,
+sur la machine de quelqu'un qui joue :
 
 - [ ] Ouvrir 3 versions web, les placer sur Dofus, jouer 15 minutes : pas de saccade, le
       jeu garde le clavier.
@@ -229,7 +244,7 @@ plus aucune mise à jour ne pourra être publiée pour les launchers déjà inst
 - [ ] Installer, mettre à jour, lancer, fermer depuis la barre, désinstaller un outil.
 - [ ] Installer puis désinstaller le launcher lui-même ; vérifier qu'il ne se relance plus
       au démarrage de Windows.
-- [ ] Mise à jour du launcher : publier une version 0.1.1 de test et la recevoir.
+- [x] Mise à jour du launcher : publier une version et la recevoir (fait de 0.1.1 à 0.1.4).
 
 ## Vie privée
 
@@ -243,7 +258,7 @@ Outils nécessaires, tous gratuits :
 
 - Rust (toolchain `stable-x86_64-pc-windows-msvc`) ;
 - Visual Studio Build Tools 2022, charge de travail « Développement Desktop en C++ » ;
-- Node.js 20 ou plus récent ;
+- Node.js 22.18 ou plus récent (`npm test` lance directement les fichiers `.ts`) ;
 - Inno Setup 6 (seulement pour les tests d'intégration de l'installation).
 
 ```powershell
@@ -312,7 +327,7 @@ Les installateurs de test se reconstruisent avec `test-assets\inno\build.ps1`
 
 | Type | Reconnu par | Installation | Désinstallation |
 |---|---|---|---|
-| Inno Setup | signature `rDlPtS` + « Inno Setup Setup Data » | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS` | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` |
+| Inno Setup | signature `rDlPtS` + « Inno Setup Setup Data » | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /CLOSEAPPLICATIONS /CURRENTUSER` | `/VERYSILENT /SUPPRESSMSGBOXES /NORESTART` |
 | NSIS | signature `NullsoftInst` | `/S` | `/S`, seulement si le désinstalleur est lui-même un exécutable NSIS |
 | Autre | — | aucune : le fichier est téléchargé, vérifié, puis son dossier est ouvert | — |
 

@@ -46,7 +46,7 @@
     type Settings,
     type Tool,
   } from '../shared/ipc';
-  import { t } from '../shared/i18n';
+  import { colon, t } from '../shared/i18n';
   import { search } from '../shared/fuzzy';
   import ToolCard from './ToolCard.svelte';
   import Shortcuts from './Shortcuts.svelte';
@@ -68,8 +68,14 @@
   let category = $state('');
   let refreshing = $state(false);
   let error = $state('');
+  // Le message d'erreur s'efface seul après un moment (ou par sa croix).
+  const ERROR_MS = 10000;
+  $effect(() => {
+    if (!error) return;
+    const timer = setTimeout(() => (error = ''), ERROR_MS);
+    return () => clearTimeout(timer);
+  });
   let installs = $state<InstallsView>({ statuses: {}, activity: {} });
-  // Outils dont l'installation attend la confirmation « sans empreinte publiée ».
   let icons = $state<Record<string, string>>({});
   let widgets = $state<WidgetsView>({ open: [], locked: false, hiddenAll: false, toolbarOpen: false });
 
@@ -96,6 +102,13 @@
   );
 
   const lang = $derived<Lang>(settings?.language ?? 'fr');
+  $effect(() => {
+    document.documentElement.lang = lang;
+  });
+  // Demandées (menu près de l'horloge) alors que l'onglet « Mes plugins » les montre déjà.
+  $effect(() => {
+    if (showLayouts && tab === 'plugins') showLayouts = false;
+  });
   const favorites = $derived(settings?.favorites ?? []);
   const NOT_INSTALLED: InstallStatus = { state: 'notInstalled' };
   const statusOf = (id: string): InstallStatus => installs.statuses[id] ?? NOT_INSTALLED;
@@ -122,7 +135,8 @@
     search(
       query,
       tabTools.filter((x) => !category || x.category === category),
-      (x: Tool) => [x.name, x.author, x.category, x.tagline?.[lang] ?? ''],
+      // L'accroche affichée (celle de la langue, sinon la française) et les deux langues.
+      (x: Tool) => [x.name, x.author, x.category, x.tagline?.[lang] || x.tagline?.fr || '', x.tagline?.fr ?? '', x.tagline?.en ?? ''],
     ),
   );
 
@@ -132,7 +146,7 @@
     if (catalog.launcherUpdateRequired) return t(lang, 'catalog.updateRequired');
     const states = [catalog.official, catalog.community];
     if (states.every((s) => s.state === 'unavailable')) return t(lang, 'catalog.unavailable');
-    if (states.some((s) => s.state === 'cached' && s.reason.startsWith('hors ligne')) && catalog.fetchedAt) {
+    if (states.some((s) => s.state === 'cached' && s.offline) && catalog.fetchedAt) {
       const date = new Date(catalog.fetchedAt * 1000).toLocaleString(lang === 'fr' ? 'fr-FR' : 'en-GB');
       return t(lang, 'catalog.offline', { date });
     }
@@ -151,7 +165,9 @@
     const unlisteners = [
       onCatalogUpdated((snap) => {
         catalog = snap;
-        getIcons().then((map) => (icons = map));
+        getIcons()
+          .then((map) => (icons = map))
+          .catch(() => {});
         reloadInstalls();
       }),
       onInstallsUpdated((view) => (installs = view)),
@@ -163,7 +179,7 @@
       onLauncherUpdateProgress((p) => (updateProgress = p ?? -1)),
       onInstallProgress((ev) => {
         const activity = { ...installs.activity };
-        if (ev.phase === 'done' || ev.phase === 'cancelled' || ev.phase === 'downloaded') delete activity[ev.id];
+        if (ev.phase === 'done' || ev.phase === 'cancelled') delete activity[ev.id];
         else activity[ev.id] = ev;
         installs = { ...installs, activity };
       }),
@@ -181,7 +197,7 @@
         if (await takeLayoutsRequest()) showLayouts = true;
         await reloadInstalls();
       } catch (e) {
-        error = `${t(lang, 'error.load')} : ${e}`;
+        error = `${t(lang, 'error.load')}${colon(lang)}${e}`;
       }
     })();
     return () => {
@@ -242,7 +258,7 @@
 
   async function onToggleToolbar() {
     await setToolbarOpen(!widgets.toolbarOpen).catch((e) => (error = String(e)));
-    widgets = await getWidgets();
+    widgets = await getWidgets().catch(() => widgets);
   }
 
   async function onHideWidgets() {
@@ -465,7 +481,11 @@
   </div>
 
   {#if error}
-    <p class="error" role="alert">{error}</p>
+    <!-- Au-dessus des boîtes de dialogue : une erreur venue d'elles reste visible. -->
+    <p class="error" role="alert">
+      <span>{error}</span>
+      <button class="error-close" onclick={() => (error = '')} aria-label={t(lang, 'shortcuts.close')} title={t(lang, 'shortcuts.close')}>×</button>
+    </p>
   {/if}
 
   <footer>
@@ -486,7 +506,8 @@
   <SettingsDialog {lang} {settings} onUpdate={update} onClose={() => (showSettings = false)} />
 {/if}
 
-{#if showLayouts && settings}
+<!-- Dans l'onglet « Mes plugins », les dispositions sont déjà affichées dans la page. -->
+{#if showLayouts && settings && tab !== 'plugins'}
   <LayoutsDialog
     {lang}
     view={layouts}
@@ -568,10 +589,6 @@
     to {
       transform: rotate(360deg);
     }
-  }
-  .small {
-    padding: 1px 10px;
-    font-size: 13.5px;
   }
   .widgets-bar {
     display: flex;
@@ -802,8 +819,33 @@
     margin-bottom: 14px;
   }
   .error {
-    color: var(--danger);
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    z-index: 40;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
     margin: 0;
+    padding: 8px 10px;
+    color: var(--danger);
+    background: var(--bg);
+    border: 1px solid var(--danger);
+    border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+  .error span {
+    flex: 1;
+  }
+  .error-close {
+    background: none;
+    border: 0;
+    color: inherit;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 2px;
   }
   footer {
     display: flex;

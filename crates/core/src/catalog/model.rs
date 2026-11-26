@@ -34,7 +34,7 @@ pub struct Download {
     pub url: String,
     /// Taille annoncée (absente pour les plugins communautaires).
     pub size_bytes: Option<u64>,
-    /// Empreinte SHA-256 en minuscules (peut manquer : confirmation demandée).
+    /// Empreinte SHA-256 en minuscules. Sans elle, l'outil n'est pas installable depuis le launcher.
     pub sha256: Option<String>,
 }
 
@@ -59,7 +59,7 @@ pub struct Tool {
     pub web_url: Option<String>,
     /// Version overlay (compacte, au-dessus du jeu), si l'outil en a une.
     pub overlay_url: Option<String>,
-    /// Icône carrée de l'outil (PNG, WebP ou JPEG, sur un domaine autorisé).
+    /// Icône carrée de l'outil (PNG, WebP, JPEG ou SVG, sur un domaine autorisé).
     pub icon_url: Option<String>,
     pub page_url: Option<String>,
     pub source_url: Option<String>,
@@ -70,14 +70,6 @@ pub struct Tool {
 }
 
 impl Tool {
-    pub fn parsed_version(&self) -> Option<semver::Version> {
-        self.version.as_deref().and_then(|v| semver::Version::parse(v).ok())
-    }
-
-    pub fn has_kind(&self, kind: &str) -> bool {
-        self.kinds.iter().any(|k| k == kind)
-    }
-
     /// Toutes les adresses de liens affichables (pour n'ouvrir que celles-ci).
     pub fn links(&self) -> impl Iterator<Item = &str> {
         [&self.page_url, &self.source_url, &self.virustotal_url]

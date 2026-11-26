@@ -6,6 +6,7 @@
 
 use super::{toolbar, Widgets};
 use crate::state::{self, AppState};
+use crate::i18n::tr;
 use crate::{installer_bridge, running};
 use bworkshop_core::settings::Language;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
@@ -15,13 +16,6 @@ use tauri::{AppHandle, Emitter, Manager, Window, Wry};
 const PREFIX: &str = "tb|";
 /// Message court affiché dans la barre (erreur ou information).
 pub const EVENT_NOTICE: &str = "toolbar-notice";
-
-fn tr(lang: Language, fr: &'static str, en: &'static str) -> &'static str {
-    match lang {
-        Language::Fr => fr,
-        Language::En => en,
-    }
-}
 
 fn tool_name(app: &AppHandle, id: &str) -> Option<String> {
     app.state::<AppState>().catalog()?.tools.into_iter().find(|t| t.id == id).map(|t| t.name)

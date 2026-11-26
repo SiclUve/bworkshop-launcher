@@ -56,16 +56,14 @@ fn key_code(name: &str) -> Option<u32> {
             return Some(c as u32);
         }
     }
-    if let Some(n) = upper.strip_prefix('F').and_then(|n| n.parse::<u32>().ok()) {
-        if (1..=24).contains(&n) {
+    if let Some(n) = upper.strip_prefix('F').and_then(|n| n.parse::<u32>().ok())
+        && (1..=24).contains(&n) {
             return Some(0x70 + n - 1);
         }
-    }
-    if let Some(n) = upper.strip_prefix("NUM").and_then(|n| n.parse::<u32>().ok()) {
-        if n <= 9 {
+    if let Some(n) = upper.strip_prefix("NUM").and_then(|n| n.parse::<u32>().ok())
+        && n <= 9 {
             return Some(0x60 + n);
         }
-    }
     Some(match upper.as_str() {
         "SPACE" => 0x20,
         "PAGEUP" => 0x21,

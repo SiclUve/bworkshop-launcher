@@ -1,4 +1,4 @@
-﻿//! Lecture des deux catalogues avec cache et requêtes conditionnelles (ETag).
+//! Lecture des deux catalogues avec cache et requêtes conditionnelles (ETag).
 //!
 //! - Réseau OK, contenu valide → cache mis à jour, état « à jour ».
 //! - 304 Not Modified → le cache est réutilisé, état « à jour ».
@@ -32,7 +32,8 @@ pub enum SourceState {
     /// Vérifié auprès du site à l'instant.
     Fresh,
     /// Dernier catalogue valide connu, utilisé faute de mieux.
-    Cached { reason: String },
+    /// `offline` : le site n'a pas répondu (l'interface affiche alors « hors ligne »).
+    Cached { reason: String, offline: bool },
     /// Rien d'utilisable (premier lancement hors ligne, par exemple).
     Unavailable { reason: String },
 }
@@ -139,12 +140,16 @@ impl<H: HttpGet> CatalogService<H> {
     }
 
     fn cached_outcome(&self, kind: Kind, reason: String) -> Outcome {
+        self.cached_outcome_with(kind, reason, false)
+    }
+
+    fn cached_outcome_with(&self, kind: Kind, reason: String, offline: bool) -> Outcome {
         let cached = cache::read(&self.cache_dir.join(kind.file()));
         let parsed = cached.as_ref().map(|c| (c.fetched_at, kind.parse(c.body.as_bytes())));
         match parsed {
             Some((fetched_at, Ok(p))) => Outcome {
                 tools: p.tools,
-                state: SourceState::Cached { reason },
+                state: SourceState::Cached { reason, offline },
                 update_required: false,
                 fetched_at: Some(fetched_at),
                 ignored: p.ignored,
@@ -181,7 +186,7 @@ impl<H: HttpGet> CatalogService<H> {
         match response {
             Err(e) => {
                 log::warn!("Catalogue {} injoignable : {e}", kind.label());
-                self.cached_outcome(kind, format!("hors ligne : {e}"))
+                self.cached_outcome_with(kind, format!("hors ligne : {e}"), true)
             }
             Ok(HttpResponse::NotModified) => {
                 let Some(mut c) = cached else {

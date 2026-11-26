@@ -66,14 +66,20 @@ fn sidecar(dest: &Path, ext: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
-/// Client pour les gros fichiers : pas de délai global, mais un délai de connexion.
+/// Délai d'attente de chaque opération (réponse du serveur, puis **chaque** lecture du
+/// corps) : avec le client bloquant de reqwest, il ne limite pas la durée totale d'un gros
+/// téléchargement, mais une connexion muette s'arrête (et « Annuler » répond) en 30 s au plus.
+pub const IDLE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Client pour les gros fichiers : délai de connexion, et délai par lecture (pas global).
 pub fn download_client() -> Result<Client, DownloadError> {
+    net::install_tls_provider();
     Client::builder()
         .https_only(true)
         .redirect(net::redirect_policy())
         .user_agent(net::user_agent())
         .connect_timeout(Duration::from_secs(15))
-        .timeout(None::<Duration>)
+        .timeout(IDLE_TIMEOUT)
         .build()
         .map_err(|e| DownloadError::Network(e.to_string()))
 }
@@ -156,6 +162,14 @@ pub fn download(
     }
     let mut response = request.send().map_err(|e| DownloadError::Network(e.to_string()))?;
 
+    // Partie déjà complète (annulation pendant le dernier bloc) : le serveur répond
+    // « plage impossible ». On vérifie ce qu'on a : bonne empreinte, c'est fini ; sinon la
+    // partie est supprimée par `finish` et le prochain essai repart de zéro.
+    if response.status() == StatusCode::RANGE_NOT_SATISFIABLE && existing > 0 {
+        log::info!("Partie déjà complète ({existing} octets) : vérification de l'empreinte");
+        return finish(req, &part, to_hex(&hasher.finalize()));
+    }
+
     let append = match response.status() {
         StatusCode::PARTIAL_CONTENT if existing > 0 => true,
         s if s.is_success() => false,
@@ -173,13 +187,12 @@ pub fn download(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
     let total = remaining.map(|r| r + existing);
-    if let Some(t) = total {
-        if t > req.max_bytes {
+    if let Some(t) = total
+        && t > req.max_bytes {
             let _ = fs::remove_file(&part);
             let _ = fs::remove_file(&meta);
             return Err(DownloadError::TooLarge { max: req.max_bytes });
         }
-    }
 
     let mut file = if append {
         OpenOptions::new().append(true).open(&part)?

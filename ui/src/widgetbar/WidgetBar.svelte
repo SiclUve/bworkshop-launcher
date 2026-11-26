@@ -20,6 +20,9 @@
   const lang = $derived(bar?.language ?? 'fr');
   const initial = $derived((bar?.name ?? '?').trim().charAt(0).toUpperCase());
 
+  // Pas de zone de message dans cette petite barre : un échec est noté dans la console.
+  const run = (p: Promise<unknown>) => p.catch((e) => console.warn(e));
+
   function apply(s: BarState) {
     bar = s;
     opacity = Math.round(s.opacity * 100);
@@ -27,7 +30,7 @@
   }
 
   onMount(() => {
-    widgetBarState().then((s) => s && apply(s));
+    run(widgetBarState().then((s) => s && apply(s)));
     const off = onWidgetBarState((s) => {
       if (!bar || s.id === bar.id) apply(s);
     });
@@ -37,24 +40,32 @@
   });
 
   // Bouton gauche sur la zone de titre : déplacement ; double clic : replier / déplier.
+  // Le double clic est compté ici (deux appuis rapprochés) : sur `pointerdown`, `detail`
+  // vaut toujours 0, et le déplacement lancé au premier appui avale le `dblclick`.
+  const DOUBLE_MS = 500;
+  let lastDown = { at: -Infinity, x: 0, y: 0 };
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
-    if (e.detail >= 2) {
-      widgetToggleCollapse();
+    // Même endroit de l'écran : un widget déplacé entre les deux appuis n'est pas replié.
+    const near = Math.abs(e.screenX - lastDown.x) <= 4 && Math.abs(e.screenY - lastDown.y) <= 4;
+    if (e.timeStamp - lastDown.at < DOUBLE_MS && near) {
+      lastDown = { at: -Infinity, x: 0, y: 0 };
+      run(widgetToggleCollapse());
       return;
     }
-    widgetDrag();
+    lastDown = { at: e.timeStamp, x: e.screenX, y: e.screenY };
+    run(widgetDrag());
   }
 
   let pending: ReturnType<typeof setTimeout> | undefined;
   function onOpacityInput() {
     // Appliqué tout de suite, sans attendre le relâchement du curseur.
     clearTimeout(pending);
-    pending = setTimeout(() => widgetSetOpacity(opacity / 100), 16);
+    pending = setTimeout(() => run(widgetSetOpacity(opacity / 100)), 16);
   }
 
   function onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' && bar?.settingsOpen) widgetSettings(false);
+    if (e.key === 'Escape' && bar?.settingsOpen) run(widgetSettings(false));
   }
 </script>
 
@@ -73,7 +84,7 @@
         type="button"
         aria-label={bar.collapsed ? t(lang, 'widget.expand') : t(lang, 'widget.collapse')}
         title={bar.collapsed ? t(lang, 'widget.expand') : t(lang, 'widget.collapse')}
-        onclick={() => widgetToggleCollapse()}
+        onclick={() => run(widgetToggleCollapse())}
       >
         {#if bar.collapsed}
           <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="3" width="10" height="10" rx="1.5" /></svg>
@@ -82,7 +93,7 @@
         {/if}
       </button>
       {#if !bar.collapsed}
-        <button type="button" aria-label={t(lang, 'widget.reload')} title={t(lang, 'widget.reload')} onclick={() => widgetReload()}>
+        <button type="button" aria-label={t(lang, 'widget.reload')} title={t(lang, 'widget.reload')} onclick={() => run(widgetReload())}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.5M13 2.5v3h-3" /></svg>
         </button>
         <button
@@ -91,12 +102,12 @@
           title={t(lang, 'widget.settings')}
           aria-expanded={bar.settingsOpen}
           class:active={bar.settingsOpen}
-          onclick={() => widgetSettings(!bar?.settingsOpen)}
+          onclick={() => run(widgetSettings(!bar?.settingsOpen))}
         >
           <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" /></svg>
         </button>
       {/if}
-      <button type="button" class="close" aria-label={t(lang, 'widget.close')} title={t(lang, 'widget.close')} onclick={() => widgetClose()}>
+      <button type="button" class="close" aria-label={t(lang, 'widget.close')} title={t(lang, 'widget.close')} onclick={() => run(widgetClose())}>
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
       </button>
     </div>

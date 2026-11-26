@@ -1,6 +1,6 @@
 //! Icône de la zone de notification.
 //! - Clic gauche : réafficher les derniers widgets.
-//! - Clic droit : Ouvrir, Dispositions, Tout cacher, Quitter.
+//! - Clic droit : Ouvrir, Dispositions, Tout cacher (ou Tout montrer), Quitter.
 
 use crate::i18n::t;
 use crate::state::{self, AppState};
@@ -24,7 +24,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         let label = if i < 4 { format!("{}. {name}", i + 1) } else { name.clone() };
         layouts.append(&MenuItem::with_id(app, format!("layout|{i}"), label, true, None::<&str>)?)?;
     }
-    let hide_all = MenuItem::with_id(app, "hide_all", t(lang, "hide_all"), true, None::<&str>)?;
+    // « Tout cacher » devient « Tout montrer » quand tout est caché.
+    let hidden = app.state::<widgets::Widgets>().view().hidden_all;
+    let hide_all = MenuItem::with_id(app, "hide_all", t(lang, if hidden { "show_all" } else { "hide_all" }), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let quit = MenuItem::with_id(app, "quit", t(lang, "quit"), true, None::<&str>)?;
     Menu::with_items(app, &[&open, &layouts, &hide_all, &sep, &quit])
@@ -40,11 +42,10 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             "open" => state::show_main(app),
             "hide_all" => widgets::toggle_hide_all(app),
             id if id.starts_with("layout|") => {
-                if let Ok(i) = id[7..].parse::<usize>() {
-                    if let Err(e) = crate::layouts::apply(app, i) {
+                if let Ok(i) = id[7..].parse::<usize>()
+                    && let Err(e) = crate::layouts::apply(app, i) {
                         log::warn!("Disposition non rappelée : {e}");
                     }
-                }
             }
             "quit" => {
                 log::info!("Quitter demandé depuis la zone de notification");

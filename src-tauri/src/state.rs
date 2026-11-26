@@ -98,6 +98,14 @@ pub fn hide_main(app: &AppHandle) {
 
 /// Événement envoyé à la barre d'outils quand la fenêtre principale s'ouvre ou se cache.
 pub const EVENT_MAIN_VISIBLE: &str = "main-visible";
+/// Réglages enregistrés (langue, favoris…) : la barre d'outils suit.
+pub const EVENT_SETTINGS: &str = "settings-updated";
+
+/// Prévient la barre d'outils que les réglages ont changé.
+pub fn emit_settings(app: &AppHandle) {
+    use tauri::Emitter;
+    let _ = app.emit_to(crate::widgets::toolbar::LABEL, EVENT_SETTINGS, app.state::<AppState>().settings());
+}
 
 /// Fenêtre principale affichée (visible et pas réduite).
 pub fn main_visible(app: &AppHandle) -> bool {
@@ -112,15 +120,16 @@ pub fn emit_main_visible(app: &AppHandle) {
 }
 
 /// Aligne l'entrée « lancer au démarrage » de Windows (HKCU\…\Run) sur le réglage.
-pub fn sync_autostart(app: &AppHandle) {
+/// L'erreur est rendue (et journalisée) : l'appelant décide de la montrer.
+pub fn sync_autostart(app: &AppHandle) -> Result<(), String> {
     let wanted = app.state::<AppState>().settings().autostart;
-    let exe = match std::env::current_exe() {
-        Ok(p) => p,
-        Err(e) => return log::warn!("Lancement au démarrage : exécutable introuvable ({e})"),
-    };
-    match crate::autostart::sync(wanted, &exe, crate::HIDDEN_ARG) {
+    let result = std::env::current_exe()
+        .map_err(|e| format!("exécutable introuvable ({e})"))
+        .and_then(|exe| crate::autostart::sync(wanted, &exe, crate::HIDDEN_ARG).map_err(|e| e.to_string()));
+    match result {
         Ok(true) => log::info!("Lancement au démarrage de Windows : {}", if wanted { "activé" } else { "désactivé" }),
         Ok(false) => {}
-        Err(e) => log::warn!("Impossible de modifier le lancement au démarrage : {e}"),
+        Err(ref e) => log::warn!("Impossible de modifier le lancement au démarrage : {e}"),
     }
+    result.map(|_| ()).map_err(|e| format!("Impossible de modifier le lancement au démarrage : {e}"))
 }

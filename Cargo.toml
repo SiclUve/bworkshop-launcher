@@ -4,7 +4,7 @@ members = ["crates/core", "src-tauri"]
 
 [workspace.package]
 version = "0.1.4"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 
 # Binaire de livraison : petit et rapide (budget installateur < 10 Mo).
