@@ -1,0 +1,187 @@
+# Construit et signe l'installateur du launcher sur une machine Windows de GitHub,
+# puis crée une release en BROUILLON dans SiclUve/bworkshop-releases.
+# Rien n'est visible des joueurs tant que le brouillon n'est pas publié à la main,
+# puis annoncé avec le workflow « Annoncer la mise à jour ».
+#
+# Avant : changer la version dans src-tauri/tauri.conf.json, package.json, Cargo.toml
+# (racine) et Cargo.lock, puis pousser.
+#
+# Secrets du dépôt :
+#  - TAURI_SIGNING_PRIVATE_KEY : contenu de la clé privée de mise à jour ;
+#  - TAURI_SIGNING_PRIVATE_KEY_PASSWORD : son mot de passe ;
+#  - RELEASES_TOKEN : jeton limité à SiclUve/bworkshop-releases (Contents : lecture et écriture).
+
+name: Construire une version
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Ce qui change, en une phrase (montré aux joueurs)"
+        required: true
+
+permissions:
+  contents: write      # tag v<version> sur le commit construit
+  id-token: write      # attestation de provenance
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  construire:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Vérifier la version
+        id: v
+        shell: pwsh
+        run: |
+          $v = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $cargo = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+          if ($pkg -ne $v -or $cargo -ne $v) {
+            throw "Versions différentes : tauri.conf.json $v, package.json $pkg, Cargo.toml $cargo"
+          }
+          if (git ls-remote --tags origin "refs/tags/v$v") {
+            throw "Le tag v$v existe déjà : change la version avant de construire."
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $v"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rust stable
+        shell: pwsh
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Tests
+        shell: pwsh
+        run: |
+          cargo test --workspace --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Tests en échec.' }
+          npm run check
+          if ($LASTEXITCODE -ne 0) { throw "Vérification de l'interface en échec." }
+
+      - name: Construire et signer
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) { throw 'Secret TAURI_SIGNING_PRIVATE_KEY absent.' }
+          # Chemins de la machine de construction réécrits dans l'exécutable.
+          $sep = [char]0x1f
+          $env:CARGO_ENCODED_RUSTFLAGS = "--remap-path-prefix=$env:USERPROFILE=~$sep--remap-path-prefix=$PWD=.$sep-Clink-arg=/PDBALTPATH:%_PDB%"
+          # Signature (.sig) de l'installateur, vérifiée avec la clé publique du dépôt.
+          $extra = Join-Path $env:RUNNER_TEMP 'updater.json'
+          $conf = @{
+            build   = @{ beforeBuildCommand = '' }
+            bundle  = @{ createUpdaterArtifacts = $true }
+            plugins = @{ updater = @{ pubkey = (Get-Content src-tauri/updater-key.pub -Raw).Trim() } }
+          }
+          [IO.File]::WriteAllText($extra, ($conf | ConvertTo-Json -Depth 5), (New-Object Text.UTF8Encoding $false))
+          npm run build
+          if ($LASTEXITCODE -ne 0) { throw "Construction de l'interface en échec." }
+          npm run tauri -- build --config $extra -- --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Construction en échec.' }
+
+      - name: Préparer les fichiers de la release
+        id: files
+        shell: pwsh
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          $v = '${{ steps.v.outputs.version }}'
+          $tag = "Launcher$v"
+          $setup = Get-ChildItem target/release/bundle/nsis -Filter "*_${v}_*-setup.exe" | Select-Object -First 1
+          if (-not $setup) { throw 'Installateur introuvable.' }
+          # Nom sans espace : celui que GitHub publie.
+          $name = $setup.Name -replace ' ', '.'
+          $out = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'release')
+          Copy-Item $setup.FullName (Join-Path $out $name)
+          Copy-Item "$($setup.FullName).sig" (Join-Path $out "$name.sig")
+          $utf8 = New-Object Text.UTF8Encoding $false
+          $hash = (Get-FileHash (Join-Path $out $name) -Algorithm SHA256).Hash.ToLower()
+          [IO.File]::WriteAllText((Join-Path $out "$name.sha256"), "$hash  $name`n", $utf8)
+          $download = "https://github.com/SiclUve/bworkshop-releases/releases/download/$tag/$name"
+          $latest = [ordered]@{
+            version   = $v
+            notes     = $env:NOTES
+            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+            platforms = [ordered]@{
+              'windows-x86_64' = [ordered]@{
+                signature = (Get-Content "$($setup.FullName).sig" -Raw).Trim()
+                url       = $download
+              }
+            }
+          }
+          [IO.File]::WriteAllText((Join-Path $out 'latest.json'), ($latest | ConvertTo-Json -Depth 5), $utf8)
+          $body = @"
+          ## Bworkshop Launcher $v
+
+          $env:NOTES
+
+          **Télécharger :** [$name]($download)
+
+          **SHA-256 :** ``$hash``
+
+          Vérifier le fichier téléchargé (PowerShell) :
+
+          ``````powershell
+          Get-FileHash "`$env:USERPROFILE\Downloads\$name" -Algorithm SHA256
+          ``````
+
+          Construit par GitHub Actions depuis le commit [$($env:GITHUB_SHA.Substring(0,7))](https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA) ([journal de construction]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID)). Provenance vérifiable : ``gh attestation verify $name -R $env:GITHUB_REPOSITORY``
+
+          Windows 10 et 11 · installation sans droits administrateur · code source : https://github.com/SiclUve/bworkshop-launcher
+
+          L'installateur n'a pas de certificat de signature de code : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur « Informations complémentaires » puis « Exécuter quand même ».
+          "@
+          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'release-notes.md'), $body, $utf8)
+          "dir=$out" >> $env:GITHUB_OUTPUT
+          "name=$name" >> $env:GITHUB_OUTPUT
+          Write-Host "Installateur : $name"
+          Write-Host "SHA-256      : $hash"
+
+      - name: Attestation de provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ steps.files.outputs.dir }}/${{ steps.files.outputs.name }}
+
+      - name: Release en brouillon et tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if (-not $env:GH_TOKEN) { throw 'Secret RELEASES_TOKEN absent.' }
+          $v = '${{ steps.v.outputs.version }}'
+          $dir = '${{ steps.files.outputs.dir }}'
+          $files = Get-ChildItem $dir | ForEach-Object { $_.FullName }
+          gh release create "Launcher$v" @files --repo SiclUve/bworkshop-releases --draft `
+            --title "Bworkshop Launcher $v" --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { throw 'Création de la release impossible.' }
+          # Le tag relie la version publiée au code exact qui l'a produite.
+          git tag "v$v" $env:GITHUB_SHA
+          git push origin "v$v"
+          if ($LASTEXITCODE -ne 0) { throw "Tag v$v impossible à pousser." }
+          Write-Host "Brouillon prêt : https://github.com/SiclUve/bworkshop-releases/releases"

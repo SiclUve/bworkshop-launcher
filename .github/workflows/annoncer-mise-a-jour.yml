@@ -1,0 +1,49 @@
+# Annonce une version publiée aux launchers installés : copie son latest.json dans la
+# release fixe « launcher-latest » de SiclUve/bworkshop-releases.
+# À lancer seulement APRÈS avoir publié (et vérifié) le brouillon créé par
+# « Construire une version ».
+
+name: Annoncer la mise à jour
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version à annoncer (ex. 0.1.4)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  annoncer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Copier latest.json dans launcher-latest
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Version invalide : $VERSION"; exit 1; }
+          repo=SiclUve/bworkshop-releases
+          tag="Launcher$VERSION"
+          draft=$(gh release view "$tag" --repo "$repo" --json isDraft -q .isDraft)
+          if [ "$draft" != "false" ]; then
+            echo "La release $tag est encore un brouillon : publie-la d'abord."; exit 1
+          fi
+          gh release download "$tag" --repo "$repo" --pattern latest.json --dir dl
+          found=$(jq -r .version dl/latest.json)
+          if [ "$found" != "$VERSION" ]; then
+            echo "latest.json annonce $found au lieu de $VERSION."; exit 1
+          fi
+          # Le fichier pointé doit exister et être téléchargeable.
+          url=$(jq -r '.platforms["windows-x86_64"].url' dl/latest.json)
+          curl -sfIL -o /dev/null "$url" || { echo "Installateur introuvable : $url"; exit 1; }
+          gh release upload launcher-latest dl/latest.json --repo "$repo" --clobber
+          echo "Version $VERSION annoncée aux launchers installés."
