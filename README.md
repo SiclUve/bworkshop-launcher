@@ -224,28 +224,6 @@ au dépôt des releases (`RELEASES_TOKEN`).
    release `launcher-latest`, et les launchers installés la proposent.
 5. Mettre à jour le lien et le SHA-256 sur la page de téléchargement du site.
 
-## Tests manuels en jeu
-
-À refaire avant une version qui touche aux fenêtres, au suivi de Dofus ou aux raccourcis,
-sur la machine de quelqu'un qui joue :
-
-- [ ] Ouvrir 3 versions web, les placer sur Dofus, jouer 15 minutes : pas de saccade, le
-      jeu garde le clavier.
-- [ ] Alt+B, Alt+H, Alt+L en jeu : effet immédiat, le jeu ne perd pas le focus.
-- [ ] Alt+1 à Alt+4 : chaque disposition se remet en place.
-- [ ] Deux écrans : déplacer une version web d'un écran à l'autre, fermer puis rouvrir le
-      launcher (elle revient au même endroit) ; débrancher l'écran (elle revient sur l'écran restant).
-- [ ] Zoom Windows à 150 % : tailles et positions justes, texte net.
-- [ ] Suivre Dofus : déplacer le jeu (les fenêtres posées dessus suivent), le
-      redimensionner, le réduire, l'agrandir (elles ne partent pas n'importe où).
-- [ ] Fermer Dofus : les fenêtres restent là, rien ne plante ; le relancer : le suivi reprend.
-- [ ] « Cacher quand le jeu n'est pas devant » : passer sur le navigateur puis revenir au jeu.
-- [ ] Aimantation aux bords de l'écran, du jeu et des autres fenêtres ; Maj pour l'éviter.
-- [ ] Installer, mettre à jour, lancer, fermer depuis la barre, désinstaller un outil.
-- [ ] Installer puis désinstaller le launcher lui-même ; vérifier qu'il ne se relance plus
-      au démarrage de Windows.
-- [x] Mise à jour du launcher : publier une version et la recevoir (fait de 0.1.1 à 0.1.4).
-
 ## Vie privée
 
 Aucune télémétrie, aucune donnée envoyée. Le journal reste sur ta machine
