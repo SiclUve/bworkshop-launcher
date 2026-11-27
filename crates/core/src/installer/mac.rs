@@ -21,6 +21,7 @@ pub const KEY_PREFIX: &str = "mac:";
 
 /// Identifiant d'application Mac de chaque outil du catalogue.
 const BUNDLE_IDS: &[(&str, &str)] = &[
+    ("assistant-forge", "app.bworkshop.assistant-forge"),
     ("simulateur-harebourg", "app.bworkshop.harebourg-overlay"),
     ("bworklingo", "app.bworkshop.bworklingo"),
     ("skin-helper", "app.bworkshop.dofus-color-picker"),
