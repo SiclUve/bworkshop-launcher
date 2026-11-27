@@ -75,6 +75,7 @@ fn command(exe: &Path) -> io::Result<Command> {
 mod tests {
     use super::*;
 
+    #[cfg_attr(not(windows), allow(dead_code))]
     fn entry(icon: &str) -> UninstallEntry {
         UninstallEntry {
             key: "{X}_is1".into(),
@@ -85,6 +86,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn exe_depuis_display_icon() {
         assert_eq!(main_exe(&entry(r"C:\Outils\X\Outil.exe"), None), Some(PathBuf::from(r"C:\Outils\X\Outil.exe")));
         assert_eq!(main_exe(&entry(r#""C:\Outils\X\Outil.exe",0"#), None), Some(PathBuf::from(r"C:\Outils\X\Outil.exe")));
@@ -93,6 +95,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
     fn exe_declare_prioritaire() {
         assert_eq!(
             main_exe(&entry(r"C:\Outils\X\icone.ico"), Some("bin\\Outil.exe")),

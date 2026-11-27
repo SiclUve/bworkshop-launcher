@@ -79,9 +79,10 @@ mod tests {
 
     #[test]
     fn chemins_attendus() {
-        let p = AppPaths::from_roots(Path::new(r"C:\R"), Path::new(r"C:\L"));
-        assert_eq!(p.settings_file(), Path::new(r"C:\R\BworkshopLauncher\settings.json"));
-        assert_eq!(p.logs_dir(), Path::new(r"C:\L\BworkshopLauncher\logs"));
-        assert_eq!(p.downloads_dir(), Path::new(r"C:\L\BworkshopLauncher\downloads"));
+        let (r, l) = (Path::new("R"), Path::new("L"));
+        let p = AppPaths::from_roots(r, l);
+        assert_eq!(p.settings_file(), r.join("BworkshopLauncher").join("settings.json"));
+        assert_eq!(p.logs_dir(), l.join("BworkshopLauncher").join("logs"));
+        assert_eq!(p.downloads_dir(), l.join("BworkshopLauncher").join("downloads"));
     }
 }

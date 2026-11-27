@@ -371,8 +371,32 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Sur Mac, les champs de téléchargement des exemples deviennent leurs versions Mac
+    /// (`download` → `downloadMac`…) : les mêmes tests vérifient les deux launchers.
+    fn for_platform(mut root: Value) -> Value {
+        if !FOR_MAC {
+            return root;
+        }
+        for list in ["apps", "communityPlugins"] {
+            if let Some(items) = root.get_mut(list).and_then(Value::as_array_mut) {
+                for item in items.iter_mut().filter_map(Value::as_object_mut) {
+                    for (from, to) in [("download", "downloadMac"), ("downloadUrl", "downloadUrlMac"), ("sha256", "sha256Mac")] {
+                        if let Some(v) = item.remove(from) {
+                            item.insert(to.to_string(), v);
+                        }
+                    }
+                }
+            }
+        }
+        root
+    }
+
+    fn to_vec_p(v: Value) -> serde_json::Result<Vec<u8>> {
+        serde_json::to_vec(&for_platform(v))
+    }
+
     fn official(apps: Value) -> Vec<u8> {
-        serde_json::to_vec(&json!({"schemaVersion": 2, "apps": apps})).unwrap()
+        to_vec_p(json!({"schemaVersion": 2, "apps": apps})).unwrap()
     }
 
     fn app(id: &str) -> Value {
@@ -466,18 +490,18 @@ mod tests {
 
     #[test]
     fn schema_version() {
-        let newer = serde_json::to_vec(&json!({"schemaVersion": 3, "apps": []})).unwrap();
+        let newer = to_vec_p(json!({"schemaVersion": 3, "apps": []})).unwrap();
         assert_eq!(parse_official(&newer), Err(ParseError::NewerSchema { found: 3 }));
-        let older = serde_json::to_vec(&json!({"schemaVersion": 1, "apps": []})).unwrap();
+        let older = to_vec_p(json!({"schemaVersion": 1, "apps": []})).unwrap();
         assert!(matches!(parse_official(&older), Err(ParseError::Invalid(_))));
-        let absent = serde_json::to_vec(&json!({"apps": []})).unwrap();
+        let absent = to_vec_p(json!({"apps": []})).unwrap();
         assert!(matches!(parse_official(&absent), Err(ParseError::Invalid(_))));
         assert!(matches!(parse_official(b"<html>"), Err(ParseError::Json(_))));
     }
 
     #[test]
     fn communaute() {
-        let body = serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+        let body = to_vec_p(json!({"schemaVersion": 2, "communityPlugins": [{
             "slug": "grimoire-boss", "name": "Grimoire Boss", "version": "0.1.0", "category": "combat",
             "kinds": ["overlay", "web"], "platforms": ["windows", "web"], "author": "Rubicon",
             "downloadUrl": "https://github.com/rubiconte/GrimoireBoss/releases/download/v/a.exe",
@@ -497,7 +521,7 @@ mod tests {
 
     #[test]
     fn communaute_autre_auteur_github(){
-        let plugin = |url: &str| serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+        let plugin = |url: &str| to_vec_p(json!({"schemaVersion": 2, "communityPlugins": [{
             "slug": "rorganizer", "name": "ROrganizer", "version": "1.6.0", "category": "utilitaire",
             "kinds": ["application"], "platforms": ["windows"], "author": "Loulouw",
             "downloadUrl": url, "sha256": "b".repeat(64), "pageUrl": "/plugins/rorganizer/"
@@ -515,7 +539,7 @@ mod tests {
 
     #[test]
     fn sans_empreinte_pas_de_bouton_installer() {
-        let p = parse_community(&serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+        let p = parse_community(&to_vec_p(json!({"schemaVersion": 2, "communityPlugins": [{
             "slug": "sans-sha", "name": "Sans SHA", "version": "1.0.0", "category": "utilitaire",
             "kinds": ["application"], "platforms": ["windows"], "author": "X",
             "downloadUrl": "https://github.com/SiclUve/x/releases/download/v1/x.exe", "pageUrl": "/plugins/sans-sha/"
@@ -530,7 +554,8 @@ mod tests {
     fn version_mac_choisie_selon_la_plateforme() {
         let mut a = app("simulateur-harebourg");
         a["downloadMac"] = json!({"url": "https://bworkshop.app/a.dmg", "sizeBytes": 20, "sha256": "cd".repeat(32)});
-        let p = parse_official(&official(json!([a, app("bworklingo")]))).unwrap();
+        let body = serde_json::to_vec(&json!({"schemaVersion": 2, "apps": [a, app("bworklingo")]})).unwrap();
+        let p = parse_official(&body).unwrap();
         let (with_mac, without) = (&p.tools[0], &p.tools[1]);
         if cfg!(target_os = "macos") {
             assert_eq!(with_mac.download.as_ref().unwrap().url, "https://bworkshop.app/a.dmg");
