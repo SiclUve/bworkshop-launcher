@@ -345,6 +345,8 @@ jobs:
             echo "Windows : l'installateur n'a pas de certificat de signature de code, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur « Informations complémentaires » puis « Exécuter quand même »."
             echo
             echo "Mac : l'application n'est pas signée par un compte développeur Apple. Glisse-la dans Applications et ouvre-la : macOS refuse la première fois. Ferme le message, puis va dans Réglages Système > Confidentialité et sécurité et clique en bas sur « Ouvrir quand même » (sur macOS 14 ou plus ancien, clic droit sur l'application > Ouvrir suffit aussi)."
+            echo
+            echo "**Version Mac pas encore vérifiée sur un vrai Mac** : si quelque chose ne marche pas, n'hésite pas à signaler le bug (https://bworkshop.app/contact/)."
           } > "$RUNNER_TEMP/release-notes.md"
           echo "dir=$out" >> "$GITHUB_OUTPUT"
           echo "setup=$setup" >> "$GITHUB_OUTPUT"
