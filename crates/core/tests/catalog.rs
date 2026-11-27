@@ -181,7 +181,12 @@ fn vrais_catalogues_du_site() {
     let forge = &off.tools[0];
     assert_eq!(forge.web_url.as_deref(), Some("https://bworkshop.app/forge-app/"));
     assert_eq!(forge.overlay_url.as_deref(), Some("https://bworkshop.app/forge-app/?overlay=1"));
-    assert_eq!(forge.download.as_ref().unwrap().size_bytes, Some(141_743_088));
+    if cfg!(target_os = "macos") {
+        // Ce catalogue n'a que des versions Windows : rien d'installable sur Mac.
+        assert!(off.tools.iter().all(|t| t.download.is_none() && !t.available));
+    } else {
+        assert_eq!(forge.download.as_ref().unwrap().size_bytes, Some(141_743_088));
+    }
     let photobooth = off.tools.iter().find(|t| t.id == "dofus-photobooth").unwrap();
     assert!(!photobooth.available, "en développement et sans download : « Bientôt »");
 
