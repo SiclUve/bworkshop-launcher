@@ -19,6 +19,9 @@ pub const KNOWN_SCHEMA_VERSION: u64 = 2;
 pub const SITE_ORIGIN: &str = "https://bworkshop.app";
 /// Launcher Mac : les téléchargements lus sont les versions Mac (`downloadMac`…).
 const FOR_MAC: bool = cfg!(target_os = "macos");
+/// Mac à puce Apple (sinon Intel) : la version propre à la puce passe avant la version
+/// universelle (`downloadMacArm64` / `downloadMacX64`, puis `downloadMac`).
+const MAC_ARM: bool = cfg!(target_arch = "aarch64");
 /// Rang des plugins communautaires (après les officiels, dans l'ordre du catalogue).
 const COMMUNITY_ORDER_BASE: i64 = 10_000;
 
@@ -69,6 +72,9 @@ struct RawOfficialApp {
     /// Version Mac (.dmg), lue seulement par le launcher Mac. Les launchers plus anciens
     /// ignorent ce champ : `download` reste le fichier Windows.
     download_mac: Option<RawDownload>,
+    /// Versions Mac propres à une puce (Apple / Intel), prioritaires sur `downloadMac`.
+    download_mac_arm64: Option<RawDownload>,
+    download_mac_x64: Option<RawDownload>,
     page_url: Option<String>,
     source_url: Option<String>,
     web_url: Option<String>,
@@ -92,6 +98,11 @@ struct RawCommunityPlugin {
     /// Version Mac (.dmg) et son empreinte, lues seulement par le launcher Mac.
     download_url_mac: Option<String>,
     sha256_mac: Option<String>,
+    /// Versions Mac propres à une puce (Apple / Intel), prioritaires sur `downloadUrlMac`.
+    download_url_mac_arm64: Option<String>,
+    sha256_mac_arm64: Option<String>,
+    download_url_mac_x64: Option<String>,
+    sha256_mac_x64: Option<String>,
     web_url: Option<String>,
     overlay_url: Option<String>,
     source_url: Option<String>,
@@ -233,7 +244,12 @@ impl RawOfficialApp {
         check_id(&self.id)?;
         let id = self.id;
         let version = self.version.as_deref().map(check_version).transpose()?;
-        let raw = if FOR_MAC { self.download_mac } else { self.download };
+        let raw = if FOR_MAC {
+            let chip = if MAC_ARM { self.download_mac_arm64 } else { self.download_mac_x64 };
+            chip.or(self.download_mac)
+        } else {
+            self.download
+        };
         let download = raw.and_then(|d| build_download(&id, Some(d.url), d.size_bytes, d.sha256));
         let available = installable(&download) && self.status != Status::InDevelopment;
         let web_url = web_url_for(&id, &self.kinds, self.web_url, web_urls::official_fallback(&id));
@@ -271,7 +287,14 @@ impl RawCommunityPlugin {
         let version = Some(check_version(&self.version)?);
         // Pas de taille annoncée côté communauté (plafond appliqué au téléchargement).
         let download = if FOR_MAC {
-            build_download(&id, self.download_url_mac, None, self.sha256_mac)
+            // Adresse et empreinte vont par paire : jamais l'empreinte d'un autre fichier.
+            let chip = if MAC_ARM {
+                (self.download_url_mac_arm64, self.sha256_mac_arm64)
+            } else {
+                (self.download_url_mac_x64, self.sha256_mac_x64)
+            };
+            let (url, sha) = if chip.0.is_some() { chip } else { (self.download_url_mac, self.sha256_mac) };
+            build_download(&id, url, None, sha)
         } else {
             build_download(&id, self.download_url, None, self.sha256)
         };
@@ -575,5 +598,42 @@ mod tests {
         let t = &parse_community(&body).unwrap().tools[0];
         let expected = if cfg!(target_os = "macos") { "https://bworkshop.app/g.dmg" } else { "https://bworkshop.app/g.exe" };
         assert_eq!(t.download.as_ref().unwrap().url, expected);
+    }
+
+    #[test]
+    fn version_mac_propre_a_la_puce_prioritaire() {
+        let mut a = app("simulateur-harebourg");
+        a["downloadMac"] = json!({"url": "https://bworkshop.app/u.dmg", "sizeBytes": 20, "sha256": "cd".repeat(32)});
+        a["downloadMacArm64"] = json!({"url": "https://bworkshop.app/arm.dmg", "sizeBytes": 20, "sha256": "ce".repeat(32)});
+        a["downloadMacX64"] = json!({"url": "https://bworkshop.app/x64.dmg", "sizeBytes": 20, "sha256": "cf".repeat(32)});
+        let mut b = app("bworklingo");
+        b["downloadMac"] = json!({"url": "https://bworkshop.app/u2.dmg", "sizeBytes": 20, "sha256": "cd".repeat(32)});
+        let body = serde_json::to_vec(&json!({"schemaVersion": 2, "apps": [a, b]})).unwrap();
+        let p = parse_official(&body).unwrap();
+        let url = |i: usize| p.tools[i].download.as_ref().unwrap().url.clone();
+        if cfg!(target_os = "macos") {
+            let chip = if cfg!(target_arch = "aarch64") { "https://bworkshop.app/arm.dmg" } else { "https://bworkshop.app/x64.dmg" };
+            assert_eq!(url(0), chip);
+            assert_eq!(url(1), "https://bworkshop.app/u2.dmg", "sans version propre à la puce : l'universelle");
+        } else {
+            assert_eq!(url(0), "https://bworkshop.app/a.exe");
+        }
+
+        let body = serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+            "slug": "grimoire", "name": "Grimoire", "version": "0.2.0", "category": "combat",
+            "author": "Rubicon", "downloadUrl": "https://bworkshop.app/g.exe", "sha256": "0".repeat(64),
+            "downloadUrlMac": "https://bworkshop.app/g.dmg", "sha256Mac": "1".repeat(64),
+            "downloadUrlMacArm64": "https://bworkshop.app/g-arm.dmg", "sha256MacArm64": "2".repeat(64),
+            "downloadUrlMacX64": "https://bworkshop.app/g-x64.dmg", "sha256MacX64": "3".repeat(64)
+        }]}))
+        .unwrap();
+        let d = parse_community(&body).unwrap().tools[0].download.clone().unwrap();
+        if cfg!(target_os = "macos") {
+            let (u, s) = if cfg!(target_arch = "aarch64") { ("g-arm", "2") } else { ("g-x64", "3") };
+            assert_eq!(d.url, format!("https://bworkshop.app/{u}.dmg"));
+            assert_eq!(d.sha256, Some(s.repeat(64)));
+        } else {
+            assert_eq!(d.url, "https://bworkshop.app/g.exe");
+        }
     }
 }

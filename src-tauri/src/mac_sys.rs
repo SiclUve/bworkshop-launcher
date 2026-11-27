@@ -157,3 +157,23 @@ pub fn terminate_app(pid: u32) -> bool {
         }
     })
 }
+
+/// Met un fichier ou un dossier à la corbeille (`NSFileManager.trashItemAtURL`), sans passer
+/// par le Finder : aucune autorisation « Automatisation » n'est demandée. Vrai si c'est fait.
+pub fn trash(path: &std::path::Path) -> bool {
+    let Some(s) = path.to_str() else { return false };
+    autoreleasepool(|_| unsafe {
+        let Some(p) = ns_string(s) else { return false };
+        let url: Option<Retained<AnyObject>> = msg_send![class!(NSURL), fileURLWithPath: &*p];
+        let Some(url) = url else { return false };
+        let fm: Option<Retained<AnyObject>> = msg_send![class!(NSFileManager), defaultManager];
+        let Some(fm) = fm else { return false };
+        let ok: bool = msg_send![
+            &*fm,
+            trashItemAtURL: &*url,
+            resultingItemURL: std::ptr::null_mut::<*mut AnyObject>(),
+            error: std::ptr::null_mut::<*mut AnyObject>()
+        ];
+        ok
+    })
+}

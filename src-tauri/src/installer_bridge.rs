@@ -407,7 +407,7 @@ pub fn uninstall(app: &AppHandle, id: &str) -> Result<(), String> {
                 use bworkshop_core::installer::mac;
                 mac::user_applications_dir()
                     .ok_or_else(|| "dossier personnel introuvable".to_string())
-                    .and_then(|dir| mac::remove_app(&entry, &dir))
+                    .and_then(|dir| mac::remove_app(&entry, &dir, crate::mac_sys::trash))
             }
         };
         notify_installs(&app);
@@ -433,7 +433,11 @@ pub fn launch_tool(app: &AppHandle, id: &str) -> Result<(), String> {
     if app.state::<crate::running::Running>().is_running(id) {
         return Err("Cet outil est déjà lancé.".into());
     }
-    let child = launch::launch_suspended(&exe).map_err(|e| format!("Impossible de lancer l'outil : {e}"))?;
+    #[cfg(windows)]
+    let child = launch::launch_suspended(&exe);
+    #[cfg(target_os = "macos")]
+    let child = launch::spawn_app(&exe).map(crate::running::Spawned);
+    let child = child.map_err(|e| format!("Impossible de lancer l'outil : {e}"))?;
     crate::running::track(app, id, child)?;
     log::info!("{id} lancé");
     Ok(())

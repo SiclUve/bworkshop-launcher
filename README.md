@@ -46,11 +46,17 @@ Télécharger `Bworkshop.Launcher_<version>_universal.dmg` (Apple Silicon et Int
 plus récent), l'ouvrir et glisser l'application dans « Applications ».
 
 - L'application n'est pas signée par un compte développeur Apple (signature « ad hoc »). Au
-  premier lancement : clic droit sur l'application → Ouvrir → Ouvrir (ou Réglages Système →
-  Confidentialité et sécurité → « Ouvrir quand même »). Ensuite, elle s'ouvre normalement.
+  premier lancement, macOS refuse de l'ouvrir : fermer le message, puis Réglages Système →
+  Confidentialité et sécurité → en bas, « Ouvrir quand même » (mot de passe du Mac demandé).
+  Sur macOS 14 ou plus ancien, clic droit sur l'application → Ouvrir → Ouvrir suffit aussi.
+  Ensuite, elle s'ouvre normalement. Même chose pour chaque outil installé.
+- Les outils sont lancés sous leur propre nom : macOS leur demande à eux les autorisations
+  (enregistrement de l'écran, surveillance de l'entrée), pas au launcher.
 - Réglages, journal et téléchargements : `~/Library/Application Support/BworkshopLauncher/`.
-- Les outils sont des images disque (`.dmg`, champ `downloadMac` du catalogue, ou
-  `downloadUrlMac` + `sha256Mac` pour la communauté) ; leur application est copiée dans
+- Les outils sont des images disque. Catalogue officiel : `downloadMacArm64` (puce Apple) et
+  `downloadMacX64` (Intel), sinon `downloadMac` (universelle). Communauté : la paire
+  `downloadUrlMacArm64` + `sha256MacArm64` (ou `…MacX64`), sinon `downloadUrlMac` + `sha256Mac`.
+  Leur application est copiée dans
   `~/Applications` (sans mot de passe administrateur). Désinstaller la met à la corbeille.
   Un outil sans version Mac n'a pas de bouton « Installer » (sa version web reste disponible).
 - Lancement à l'ouverture de session : `~/Library/LaunchAgents/app.bworkshop.launcher.plist`.

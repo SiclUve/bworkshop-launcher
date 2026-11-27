@@ -248,20 +248,14 @@ pub fn install_dmg(dmg: &Path, apps_dir: &Path, work_dir: &Path, bundle_id: Opti
     Ok(target)
 }
 
-/// Met l'application à la corbeille (Finder), sinon la supprime. Seulement un `.app`
-/// rangé directement dans `apps_dir`.
-#[cfg(target_os = "macos")]
-pub fn remove_app(entry: &UninstallEntry, apps_dir: &Path) -> Result<(), String> {
+/// Met l'application à la corbeille (`trash`, fourni par l'application), sinon la supprime.
+/// Seulement un `.app` rangé directement dans `apps_dir`.
+pub fn remove_app(entry: &UninstallEntry, apps_dir: &Path, trash: impl FnOnce(&Path) -> bool) -> Result<(), String> {
     let app = PathBuf::from(entry.install_location.as_deref().ok_or("emplacement inconnu")?);
     if !is_app_dir(&app) || app.parent() != Some(apps_dir) {
         return Err("cette application n'a pas été installée par le launcher : supprime-la depuis le Finder".into());
     }
-    let to_trash = format!(
-        "tell application \"Finder\" to delete POSIX file \"{}\"",
-        app.to_string_lossy().replace('\\', "\\\\").replace('"', "\\\"")
-    );
-    let trashed = std::process::Command::new("/usr/bin/osascript").args(["-e", &to_trash]).output();
-    if trashed.is_ok_and(|o| o.status.success()) && !app.exists() {
+    if trash(&app) && !app.exists() {
         return Ok(());
     }
     std::fs::remove_dir_all(&app).map_err(|e| format!("suppression impossible : {e}"))
@@ -338,5 +332,19 @@ mod tests {
     fn identifiants_connus() {
         assert_eq!(bundle_id_for("grimoire"), Some("app.bworkshop.grimoire"));
         assert_eq!(bundle_id_for("inconnu"), None);
+    }
+
+    #[test]
+    fn suppression_limitee_aux_apps_du_dossier() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = fake_app(dir.path(), "X", PLIST);
+        let entry = UninstallEntry { install_location: Some(app.to_string_lossy().into_owned()), ..Default::default() };
+        // Hors du dossier des applications : refusé, rien n'est touché.
+        let other = tempfile::tempdir().unwrap();
+        assert!(remove_app(&entry, other.path(), |_| panic!("ne doit pas être appelé")).is_err());
+        assert!(app.exists());
+        // Corbeille indisponible : suppression.
+        remove_app(&entry, dir.path(), |_| false).unwrap();
+        assert!(!app.exists());
     }
 }

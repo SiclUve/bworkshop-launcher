@@ -52,14 +52,55 @@ pub fn launch_suspended(exe: &Path) -> io::Result<std::process::Child> {
     command(exe)?.creation_flags(CREATE_SUSPENDED).spawn()
 }
 
-/// Mac : pas de démarrage suspendu ; le processus devient chef de son propre groupe
-/// (`setpgid`), l'équivalent du « job » Windows : les processus qu'il ouvre y restent.
-#[cfg(unix)]
-pub fn launch_suspended(exe: &Path) -> io::Result<std::process::Child> {
-    use std::os::unix::process::CommandExt;
-    command(exe)?.process_group(0).spawn()
+#[cfg(target_os = "macos")]
+unsafe extern "C" {
+    /// Fonction du système (libSystem, macOS 10.14 et plus), utilisée par les terminaux et les
+    /// navigateurs : le processus lancé répond **lui-même** de ses autorisations.
+    fn responsibility_spawnattrs_setdisclaim(attr: *mut libc::posix_spawnattr_t, disclaim: libc::c_int) -> libc::c_int;
 }
 
+/// Mac : lance l'outil et rend son numéro de processus. L'appelant **doit** l'attendre
+/// (`waitpid`) pour le libérer à la fin.
+/// - Chef de son propre groupe de processus (l'équivalent du « job » Windows : les processus
+///   qu'il ouvre y restent).
+/// - « Désavoué » par le launcher : macOS demande les autorisations (enregistrement de l'écran,
+///   surveillance du clavier…) au nom de l'outil, pas du launcher. Sans cela, un programme lancé
+///   directement hérite des autorisations de son parent.
+#[cfg(target_os = "macos")]
+pub fn spawn_app(exe: &Path) -> io::Result<u32> {
+    use std::ffi::CString;
+    use std::os::unix::ffi::OsStrExt;
+    if !exe.is_file() {
+        return Err(io::Error::new(io::ErrorKind::NotFound, "exécutable introuvable"));
+    }
+    let path = CString::new(exe.as_os_str().as_bytes()).map_err(|_| io::Error::other("chemin invalide"))?;
+    let argv = [path.as_ptr() as *mut libc::c_char, std::ptr::null_mut()];
+    let mut pid: libc::pid_t = 0;
+    unsafe {
+        let mut attr: libc::posix_spawnattr_t = std::mem::zeroed();
+        let rc = libc::posix_spawnattr_init(&mut attr);
+        if rc != 0 {
+            return Err(io::Error::from_raw_os_error(rc));
+        }
+        let mut rc = libc::posix_spawnattr_setflags(&mut attr, libc::POSIX_SPAWN_SETPGROUP as libc::c_short);
+        if rc == 0 {
+            rc = libc::posix_spawnattr_setpgroup(&mut attr, 0);
+        }
+        if rc == 0 && responsibility_spawnattrs_setdisclaim(&mut attr, 1) != 0 {
+            log::warn!("Lancement : autorisations rattachées au launcher (désaveu refusé par macOS)");
+        }
+        if rc == 0 {
+            rc = libc::posix_spawn(&mut pid, path.as_ptr(), std::ptr::null(), &attr, argv.as_ptr(), *libc::_NSGetEnviron());
+        }
+        libc::posix_spawnattr_destroy(&mut attr);
+        if rc != 0 {
+            return Err(io::Error::from_raw_os_error(rc));
+        }
+    }
+    Ok(pid as u32)
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 fn command(exe: &Path) -> io::Result<Command> {
     if !exe.is_file() {
         return Err(io::Error::new(io::ErrorKind::NotFound, "exécutable introuvable"));

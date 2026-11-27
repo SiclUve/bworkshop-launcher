@@ -8,7 +8,8 @@
 # (racine) et Cargo.lock, puis pousser.
 #
 # Mac : application universelle (Apple Silicon + Intel), signée « ad hoc » (sans compte
-# développeur Apple). Au premier lancement : clic droit > Ouvrir. Les mises à jour suivantes
+# développeur Apple). Au premier lancement : Réglages Système > Confidentialité et sécurité >
+# « Ouvrir quand même » (macOS 15 n'accepte plus le clic droit > Ouvrir). Les mises à jour suivantes
 # passent par le launcher lui-même (signées avec la même clé que sous Windows).
 #
 # Secrets du dépôt :
@@ -242,6 +243,21 @@ jobs:
             echo "Chemins de construction trouvés dans l'exécutable."; exit 1
           fi
 
+      - name: Démarrer l'application (20 s)
+        run: |
+          set -euo pipefail
+          app=$(find target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          "$app/Contents/MacOS/bworkshop-launcher" &
+          pid=$!
+          sleep 20
+          if ! kill -0 "$pid" 2>/dev/null; then
+            echo "Le launcher s'est arrêté au démarrage."
+            cat "$HOME/Library/Application Support/BworkshopLauncher/logs/"* 2>/dev/null || true
+            exit 1
+          fi
+          kill "$pid"
+          echo "Le launcher tourne toujours après 20 s."
+
       - name: Rassembler les fichiers Mac
         id: files
         run: |
@@ -328,7 +344,7 @@ jobs:
             echo
             echo "Windows : l'installateur n'a pas de certificat de signature de code, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur « Informations complémentaires » puis « Exécuter quand même »."
             echo
-            echo "Mac : l'application n'est pas signée par un compte développeur Apple. Glisse-la dans Applications, puis au premier lancement fais clic droit > Ouvrir > Ouvrir (ou Réglages Système > Confidentialité et sécurité > Ouvrir quand même)."
+            echo "Mac : l'application n'est pas signée par un compte développeur Apple. Glisse-la dans Applications et ouvre-la : macOS refuse la première fois. Ferme le message, puis va dans Réglages Système > Confidentialité et sécurité et clique en bas sur « Ouvrir quand même » (sur macOS 14 ou plus ancien, clic droit sur l'application > Ouvrir suffit aussi)."
           } > "$RUNNER_TEMP/release-notes.md"
           echo "dir=$out" >> "$GITHUB_OUTPUT"
           echo "setup=$setup" >> "$GITHUB_OUTPUT"

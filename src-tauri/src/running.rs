@@ -22,7 +22,45 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 #[cfg(windows)]
 use std::os::windows::io::AsRawHandle;
+#[cfg(windows)]
 use std::process::Child;
+
+/// Processus lancé par le launcher : Windows, l'enfant rendu par `Command` (démarré suspendu) ;
+/// Mac, le numéro rendu par `launch::spawn_app` (lancé sous son propre nom).
+#[cfg(windows)]
+pub type Launched = Child;
+#[cfg(target_os = "macos")]
+pub type Launched = Spawned;
+
+/// Mac : processus lancé par `posix_spawn`, à attendre (`waitpid`) pour le libérer.
+#[cfg(target_os = "macos")]
+pub struct Spawned(pub u32);
+
+#[cfg(target_os = "macos")]
+impl Spawned {
+    fn id(&self) -> u32 {
+        self.0
+    }
+
+    /// Arrêt immédiat, puis attente : aucun processus « zombie » ne reste derrière.
+    fn kill(&mut self) -> std::io::Result<()> {
+        unsafe { libc::kill(self.0 as libc::pid_t, libc::SIGKILL) };
+        self.wait()
+    }
+
+    fn wait(&mut self) -> std::io::Result<()> {
+        let mut status = 0;
+        loop {
+            if unsafe { libc::waitpid(self.0 as libc::pid_t, &mut status, 0) } >= 0 {
+                return Ok(());
+            }
+            let err = std::io::Error::last_os_error();
+            if err.kind() != std::io::ErrorKind::Interrupted {
+                return Err(err);
+            }
+        }
+    }
+}
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager};
@@ -173,11 +211,11 @@ fn watch_ready(app: AppHandle, id: String, pid: u32) {
 /// Suit un processus que le launcher vient de démarrer (suspendu, voir `launch::launch_suspended`) :
 /// le place dans un groupe, le reprend, puis un fil attend sa fin (attente bloquante).
 /// Refusé si l'outil tourne déjà : l'entrée existante (et son groupe) ne doit pas être perdue.
-pub fn track(app: &AppHandle, id: &str, mut child: Child) -> Result<(), String> {
+pub fn track(app: &AppHandle, id: &str, mut child: Launched) -> Result<(), String> {
     let pid = child.id();
     #[cfg(windows)]
     let handle = child.as_raw_handle() as isize;
-    // Mac : le numéro du processus, chef de son propre groupe (voir `launch::launch_suspended`).
+    // Mac : le numéro du processus, chef de son propre groupe (voir `launch::spawn_app`).
     #[cfg(not(windows))]
     let handle = pid as isize;
     {
