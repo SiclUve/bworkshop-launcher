@@ -23,7 +23,11 @@ fn is_uninstaller(p: &Path) -> bool {
 }
 
 /// Exécutable principal : déclaré dans la table, sinon tiré de `DisplayIcon`.
+/// Mac : l'exécutable du paquet `.app` (`Contents/MacOS/…`), lu dans son `Info.plist`.
 pub fn main_exe(entry: &UninstallEntry, declared: Option<&str>) -> Option<PathBuf> {
+    if entry.key.starts_with(super::mac::KEY_PREFIX) {
+        return entry.display_icon.as_deref().map(PathBuf::from);
+    }
     if let (Some(rel), Some(dir)) = (declared, entry.install_location.as_deref()) {
         return Some(Path::new(dir).join(rel));
     }
@@ -46,6 +50,14 @@ pub fn launch_suspended(exe: &Path) -> io::Result<std::process::Child> {
     use std::os::windows::process::CommandExt;
     const CREATE_SUSPENDED: u32 = 0x0000_0004;
     command(exe)?.creation_flags(CREATE_SUSPENDED).spawn()
+}
+
+/// Mac : pas de démarrage suspendu ; le processus devient chef de son propre groupe
+/// (`setpgid`), l'équivalent du « job » Windows : les processus qu'il ouvre y restent.
+#[cfg(unix)]
+pub fn launch_suspended(exe: &Path) -> io::Result<std::process::Child> {
+    use std::os::unix::process::CommandExt;
+    command(exe)?.process_group(0).spawn()
 }
 
 fn command(exe: &Path) -> io::Result<Command> {

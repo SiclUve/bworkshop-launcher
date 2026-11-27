@@ -1,14 +1,18 @@
 // Pas de console en version livrée.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg_attr(target_os = "macos", path = "autostart_mac.rs")]
 mod autostart;
 mod catalog_bridge;
 mod commands;
+#[cfg_attr(target_os = "macos", path = "dofus_mac.rs")]
 mod dofus;
 mod hotkeys;
 mod i18n;
 mod installer_bridge;
 mod layouts;
+#[cfg(target_os = "macos")]
+mod mac_sys;
 mod running;
 mod state;
 mod tray;
@@ -173,6 +177,12 @@ fn main() {
             // « Quitter » appelle `exit(0)` et passe, lui.
             if let RunEvent::ExitRequested { code: None, api, .. } = &event {
                 api.prevent_exit();
+                return;
+            }
+            // Mac : clic sur l'icône du Dock, la fenêtre principale revient.
+            #[cfg(target_os = "macos")]
+            if let RunEvent::Reopen { .. } = &event {
+                state::show_main(app);
                 return;
             }
             // Positions des widgets enregistrées avant de quitter.

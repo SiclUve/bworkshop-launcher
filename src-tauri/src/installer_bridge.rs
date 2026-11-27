@@ -9,10 +9,14 @@
 use crate::state::AppState;
 use bworkshop_core::catalog::Tool;
 use bworkshop_core::installer::download::{self, DownloadError, DownloadRequest, Progress};
-use bworkshop_core::installer::registry::{RegistrySource, UninstallEntry, WindowsRegistry};
+#[cfg(not(target_os = "macos"))]
+use bworkshop_core::installer::registry::WindowsRegistry;
+use bworkshop_core::installer::registry::{RegistrySource, UninstallEntry};
 use bworkshop_core::installer::status::{entry_for, status_of, InstallStatus};
 use bworkshop_core::installer::version::is_newer;
-use bworkshop_core::installer::{kind, known_apps, launch, max_download_size, runner};
+#[cfg(not(target_os = "macos"))]
+use bworkshop_core::installer::{kind, runner};
+use bworkshop_core::installer::{known_apps, launch, max_download_size};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -23,6 +27,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub const EVENT_PROGRESS: &str = "install-progress";
 pub const EVENT_INSTALLS: &str = "installs-updated";
+#[cfg(not(target_os = "macos"))]
 const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(200);
 
@@ -109,8 +114,15 @@ fn tool_by_id(app: &AppHandle, id: &str) -> Result<Tool, String> {
         .ok_or_else(|| "Outil inconnu du catalogue".to_string())
 }
 
+#[cfg(not(target_os = "macos"))]
 fn registry_entries() -> Vec<UninstallEntry> {
     WindowsRegistry.entries()
+}
+
+/// Mac : applications de `~/Applications`.
+#[cfg(target_os = "macos")]
+fn registry_entries() -> Vec<UninstallEntry> {
+    bworkshop_core::installer::mac::MacApps::user().entries()
 }
 
 /// États de tous les outils du catalogue + opérations en cours.
@@ -243,6 +255,16 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
     // 2. Vérification : l'empreinte a été contrôlée pendant le téléchargement ;
     //    on reconnaît ici le type d'installateur par sa signature (Inno ou NSIS).
     emit_phase(app, "install", id, Phase::Verifying, None);
+    #[cfg(target_os = "macos")]
+    install_mac(app, tool, &dir, &file, &expected);
+    #[cfg(not(target_os = "macos"))]
+    install_windows(app, tool, &dir, file, &expected);
+}
+
+/// Windows : installateur Inno Setup ou NSIS, lancé en mode silencieux.
+#[cfg(not(target_os = "macos"))]
+fn install_windows(app: &AppHandle, tool: &Tool, dir: &Path, file: PathBuf, expected: &str) {
+    let id = tool.id.as_str();
     let Some(installer_kind) = kind::detect(&file).ok().flatten() else {
         log::info!("{id} : ni Inno ni NSIS, dossier ouvert sans installation");
         reveal(app, &file);
@@ -261,7 +283,7 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
     };
     // Empreinte recalculée juste avant le lancement, fichier verrouillé en écriture
     // jusqu'à la fin de l'installateur.
-    let locked = match download::open_verified(&file, &expected) {
+    let locked = match download::open_verified(&file, expected) {
         Ok(f) => f,
         Err(e) => return emit_phase(app, "install", id, Phase::Error, Some(e.to_string())),
     };
@@ -303,6 +325,54 @@ fn run_install(app: &AppHandle, tool: &Tool, cancel: &AtomicBool) {
     }
 }
 
+/// Mac : image disque vérifiée → application copiée dans `~/Applications`.
+#[cfg(target_os = "macos")]
+fn install_mac(app: &AppHandle, tool: &Tool, dir: &Path, file: &Path, expected: &str) {
+    use bworkshop_core::installer::mac;
+    let id = tool.id.as_str();
+    if !mac::is_dmg(file).unwrap_or(false) {
+        log::info!("{id} : pas une image disque, dossier ouvert sans installation");
+        reveal(app, file);
+        return emit_phase(app, "install", id, Phase::Downloaded, None);
+    }
+    // Empreinte recalculée juste avant le montage, fichier ouvert jusqu'à la fin.
+    let locked = match download::open_verified(file, expected) {
+        Ok(f) => f,
+        Err(e) => return emit_phase(app, "install", id, Phase::Error, Some(e.to_string())),
+    };
+    let Some(apps_dir) = mac::user_applications_dir() else {
+        return emit_phase(app, "install", id, Phase::Error, Some("dossier personnel introuvable".into()));
+    };
+    emit_phase(app, "install", id, Phase::Installing, None);
+    let installed = {
+        let b = bridge(app);
+        let _guard = b.installer_lock.lock();
+        mac::install_dmg(file, &apps_dir, dir, mac::bundle_id_for(id))
+    };
+    drop(locked);
+    let _ = std::fs::remove_file(file);
+    notify_installs(app);
+    match installed {
+        Ok(path) => {
+            log::info!("{id} installé : {}", path.display());
+            let entries = registry_entries();
+            match entry_for(&entries, tool).and_then(|e| e.display_version.clone()) {
+                Some(i) if tool.version.as_deref().is_some_and(|a| is_newer(a, &i)) => {
+                    emit_phase(app, "install", id, Phase::Error, Some(format!("version installée {i} au lieu de {}", tool.version.as_deref().unwrap_or("?"))))
+                }
+                _ if entry_for(&entries, tool).is_none() => {
+                    emit_phase(app, "install", id, Phase::Error, Some("l'application installée n'est pas reconnue".into()))
+                }
+                _ => emit_phase(app, "install", id, Phase::Done, None),
+            }
+        }
+        Err(e) => {
+            log::warn!("Installation de {id} en échec : {e}");
+            emit_phase(app, "install", id, Phase::Error, Some(e))
+        }
+    }
+}
+
 pub fn cancel(app: &AppHandle, id: &str) {
     if let Some(flag) = bridge(app).jobs.lock().ok().and_then(|j| j.get(id).cloned()) {
         flag.store(true, Ordering::SeqCst);
@@ -327,7 +397,18 @@ pub fn uninstall(app: &AppHandle, id: &str) -> Result<(), String> {
         let result = {
             let b = bridge(&app);
             let _guard = b.installer_lock.lock();
-            runner::uninstall(&entry, UNINSTALL_TIMEOUT, || entry_for(&registry_entries(), &tool).is_none())
+            #[cfg(not(target_os = "macos"))]
+            {
+                runner::uninstall(&entry, UNINSTALL_TIMEOUT, || entry_for(&registry_entries(), &tool).is_none())
+                    .map_err(|e| e.to_string())
+            }
+            #[cfg(target_os = "macos")]
+            {
+                use bworkshop_core::installer::mac;
+                mac::user_applications_dir()
+                    .ok_or_else(|| "dossier personnel introuvable".to_string())
+                    .and_then(|dir| mac::remove_app(&entry, &dir))
+            }
         };
         notify_installs(&app);
         match result {
@@ -387,6 +468,13 @@ pub fn open_folder(app: &AppHandle, id: &str) -> Result<(), String> {
 /// Ouvre l'Explorateur sur le fichier téléchargé, sélectionné.
 /// `explorer.exe` lit sa ligne de commande à sa façon : l'argument est passé tel quel.
 fn reveal(_app: &AppHandle, file: &Path) {
+    #[cfg(target_os = "macos")]
+    {
+        // Finder, fichier sélectionné.
+        if let Err(e) = std::process::Command::new("/usr/bin/open").arg("-R").arg(file).spawn() {
+            log::warn!("Impossible d'ouvrir le dossier de téléchargement : {e}");
+        }
+    }
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;

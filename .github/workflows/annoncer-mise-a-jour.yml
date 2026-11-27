@@ -42,8 +42,11 @@ jobs:
           if [ "$found" != "$VERSION" ]; then
             echo "latest.json annonce $found au lieu de $VERSION."; exit 1
           fi
-          # Le fichier pointé doit exister et être téléchargeable.
-          url=$(jq -r '.platforms["windows-x86_64"].url' dl/latest.json)
-          curl -sfIL -o /dev/null "$url" || { echo "Installateur introuvable : $url"; exit 1; }
+          # Les fichiers pointés (Windows, et Mac s'il est annoncé) doivent exister et être téléchargeables.
+          for platform in $(jq -r '.platforms | keys[]' dl/latest.json); do
+            url=$(jq -r --arg p "$platform" '.platforms[$p].url' dl/latest.json)
+            curl -sfIL -o /dev/null "$url" || { echo "Fichier $platform introuvable : $url"; exit 1; }
+          done
+          jq -e '.platforms["windows-x86_64"]' dl/latest.json > /dev/null || { echo "latest.json sans version Windows."; exit 1; }
           gh release upload launcher-latest dl/latest.json --repo "$repo" --clobber
           echo "Version $VERSION annoncée aux launchers installés."

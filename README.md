@@ -40,6 +40,27 @@ attestation de provenance vérifiable (voir [SECURITY.md](SECURITY.md)).
 Les **mises à jour automatiques**, elles, sont toujours signées (voir plus bas) : le
 launcher refuse toute mise à jour dont la signature ne correspond pas.
 
+### Mac
+
+Télécharger `Bworkshop.Launcher_<version>_universal.dmg` (Apple Silicon et Intel, macOS 11 ou
+plus récent), l'ouvrir et glisser l'application dans « Applications ».
+
+- L'application n'est pas signée par un compte développeur Apple (signature « ad hoc »). Au
+  premier lancement : clic droit sur l'application → Ouvrir → Ouvrir (ou Réglages Système →
+  Confidentialité et sécurité → « Ouvrir quand même »). Ensuite, elle s'ouvre normalement.
+- Réglages, journal et téléchargements : `~/Library/Application Support/BworkshopLauncher/`.
+- Les outils sont des images disque (`.dmg`, champ `downloadMac` du catalogue, ou
+  `downloadUrlMac` + `sha256Mac` pour la communauté) ; leur application est copiée dans
+  `~/Applications` (sans mot de passe administrateur). Désinstaller la met à la corbeille.
+  Un outil sans version Mac n'a pas de bouton « Installer » (sa version web reste disponible).
+- Lancement à l'ouverture de session : `~/Library/LaunchAgents/app.bworkshop.launcher.plist`.
+- Raccourcis : Win = ⌘, Alt = ⌥ ; écoutés par macOS (`RegisterEventHotKey`), sans autorisation
+  « Surveillance de l'entrée ».
+- Suivre Dofus : lecture de la liste des fenêtres 6 fois par seconde quand l'option est activée
+  (rien sinon). Dofus est reconnu au nom de son application ; son titre seulement si
+  « Enregistrement de l'écran » a été accordé (jamais demandé par le launcher).
+- Pas encore sur Mac : l'aimantation pendant qu'on déplace une fenêtre.
+
 ## Ce que le launcher ne fait pas
 
 Le launcher **ne touche jamais au jeu** :

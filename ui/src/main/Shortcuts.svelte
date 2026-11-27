@@ -1,7 +1,7 @@
 <script lang="ts">
   // Page « Raccourcis » : voir, changer, désactiver les raccourcis globaux
   // (actions du launcher, puis un raccourci par outil pour l'ouvrir ou le fermer).
-  // Pendant la saisie, les raccourcis du launcher sont suspendus (sinon Windows les garderait pour lui).
+  // Pendant la saisie, les raccourcis du launcher sont suspendus (sinon le système les garderait pour lui).
   import { onMount } from 'svelte';
   import {
     getHotkeysStatus,
@@ -12,7 +12,7 @@
     type HotkeyStatus,
     type Lang,
   } from '../shared/ipc';
-  import { t } from '../shared/i18n';
+  import { hotkeyLabel, t } from '../shared/i18n';
   import { trapFocus } from '../shared/focus';
 
   interface Props {
@@ -158,7 +158,7 @@
       {#if capturing === row.key}
         <kbd class="capture" aria-live="polite">{t(lang, 'shortcuts.press')}</kbd>
       {:else}
-        <kbd class:off={!row.value}>{row.value ? (s?.hotkey ?? row.value) : t(lang, 'shortcuts.none')}</kbd>
+        <kbd class:off={!row.value}>{row.value ? hotkeyLabel(s?.hotkey ?? row.value) : t(lang, 'shortcuts.none')}</kbd>
       {/if}
     </div>
     <div class="row actions">

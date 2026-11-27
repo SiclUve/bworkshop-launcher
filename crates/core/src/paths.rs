@@ -23,7 +23,17 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    /// Mac : réglages, journal, téléchargements et cache dans
+    /// `~/Library/Application Support/BworkshopLauncher/`.
+    #[cfg(target_os = "macos")]
+    pub fn from_env() -> Result<Self, PathsError> {
+        let home = env::var_os("HOME").ok_or(PathsError::MissingVar("HOME"))?;
+        let support = Path::new(&home).join("Library").join("Application Support");
+        Ok(Self::from_roots(&support, &support))
+    }
+
     /// Lit `%APPDATA%` et `%LOCALAPPDATA%`.
+    #[cfg(not(target_os = "macos"))]
     pub fn from_env() -> Result<Self, PathsError> {
         let roaming = env::var_os("APPDATA").ok_or(PathsError::MissingVar("APPDATA"))?;
         let local = env::var_os("LOCALAPPDATA").ok_or(PathsError::MissingVar("LOCALAPPDATA"))?;

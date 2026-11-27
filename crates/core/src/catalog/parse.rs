@@ -17,6 +17,8 @@ use url::Url;
 pub const KNOWN_SCHEMA_VERSION: u64 = 2;
 /// Base des adresses relatives (`pageUrl: "/apps/…"`).
 pub const SITE_ORIGIN: &str = "https://bworkshop.app";
+/// Launcher Mac : les téléchargements lus sont les versions Mac (`downloadMac`…).
+const FOR_MAC: bool = cfg!(target_os = "macos");
 /// Rang des plugins communautaires (après les officiels, dans l'ordre du catalogue).
 const COMMUNITY_ORDER_BASE: i64 = 10_000;
 
@@ -64,6 +66,9 @@ struct RawOfficialApp {
     tagline: Option<Localized>,
     description: Option<Localized>,
     download: Option<RawDownload>,
+    /// Version Mac (.dmg), lue seulement par le launcher Mac. Les launchers plus anciens
+    /// ignorent ce champ : `download` reste le fichier Windows.
+    download_mac: Option<RawDownload>,
     page_url: Option<String>,
     source_url: Option<String>,
     web_url: Option<String>,
@@ -84,6 +89,9 @@ struct RawCommunityPlugin {
     platforms: Vec<String>,
     author: String,
     download_url: Option<String>,
+    /// Version Mac (.dmg) et son empreinte, lues seulement par le launcher Mac.
+    download_url_mac: Option<String>,
+    sha256_mac: Option<String>,
     web_url: Option<String>,
     overlay_url: Option<String>,
     source_url: Option<String>,
@@ -225,7 +233,8 @@ impl RawOfficialApp {
         check_id(&self.id)?;
         let id = self.id;
         let version = self.version.as_deref().map(check_version).transpose()?;
-        let download = self.download.and_then(|d| build_download(&id, Some(d.url), d.size_bytes, d.sha256));
+        let raw = if FOR_MAC { self.download_mac } else { self.download };
+        let download = raw.and_then(|d| build_download(&id, Some(d.url), d.size_bytes, d.sha256));
         let available = installable(&download) && self.status != Status::InDevelopment;
         let web_url = web_url_for(&id, &self.kinds, self.web_url, web_urls::official_fallback(&id));
         let overlay_url = web_url.as_deref().and_then(|w| overlay_url_for(&id, self.overlay_url, Some(w)));
@@ -261,7 +270,11 @@ impl RawCommunityPlugin {
         let id = self.slug;
         let version = Some(check_version(&self.version)?);
         // Pas de taille annoncée côté communauté (plafond appliqué au téléchargement).
-        let download = build_download(&id, self.download_url, None, self.sha256);
+        let download = if FOR_MAC {
+            build_download(&id, self.download_url_mac, None, self.sha256_mac)
+        } else {
+            build_download(&id, self.download_url, None, self.sha256)
+        };
         let web_url = web_url_for(&id, &self.kinds, self.web_url, None);
         let overlay_url = web_url.as_deref().and_then(|w| overlay_url_for(&id, self.overlay_url, Some(w)));
         Ok(Tool {
@@ -511,5 +524,31 @@ mod tests {
         // Le lien est gardé (fiche), mais l'installation serait refusée : pas de bouton.
         assert!(p.tools[0].download.is_some());
         assert!(!p.tools[0].available);
+    }
+
+    #[test]
+    fn version_mac_choisie_selon_la_plateforme() {
+        let mut a = app("simulateur-harebourg");
+        a["downloadMac"] = json!({"url": "https://bworkshop.app/a.dmg", "sizeBytes": 20, "sha256": "cd".repeat(32)});
+        let p = parse_official(&official(json!([a, app("bworklingo")]))).unwrap();
+        let (with_mac, without) = (&p.tools[0], &p.tools[1]);
+        if cfg!(target_os = "macos") {
+            assert_eq!(with_mac.download.as_ref().unwrap().url, "https://bworkshop.app/a.dmg");
+            assert!(with_mac.available);
+            // Sans version Mac : pas de bouton d'installation sur Mac (la version web reste).
+            assert!(without.download.is_none() && !without.available);
+        } else {
+            assert_eq!(with_mac.download.as_ref().unwrap().url, "https://bworkshop.app/a.exe");
+            assert!(without.available);
+        }
+        let body = serde_json::to_vec(&json!({"schemaVersion": 2, "communityPlugins": [{
+            "slug": "grimoire", "name": "Grimoire", "version": "0.2.0", "category": "combat",
+            "author": "Rubicon", "downloadUrl": "https://bworkshop.app/g.exe", "sha256": "0".repeat(64),
+            "downloadUrlMac": "https://bworkshop.app/g.dmg", "sha256Mac": "1".repeat(64)
+        }]}))
+        .unwrap();
+        let t = &parse_community(&body).unwrap().tools[0];
+        let expected = if cfg!(target_os = "macos") { "https://bworkshop.app/g.dmg" } else { "https://bworkshop.app/g.exe" };
+        assert_eq!(t.download.as_ref().unwrap().url, expected);
     }
 }

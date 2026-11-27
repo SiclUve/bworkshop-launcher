@@ -386,7 +386,26 @@ export type I18nKey = Key;
 /** Deux-points selon la langue : espace avant en français (« Erreur : »), pas en anglais. */
 export const colon = (lang: Lang): string => (lang === 'fr' ? ' : ' : ': ');
 
+/** Launcher Mac (la vue WebKit annonce « Macintosh »). */
+export const IS_MAC = typeof navigator !== 'undefined' && navigator.userAgent.includes('Macintosh');
+
+/** Textes propres au Mac (le reste est commun). */
+const macTexts: Record<Lang, Partial<Record<Key, string>>> = {
+  fr: { 'mode.appHint': 'L’application Mac installée.', 'settings.autostart': 'Lancer à l’ouverture de session' },
+  en: { 'mode.appHint': 'The installed Mac app.', 'settings.autostart': 'Start at login' },
+};
+
+/** Raccourci affiché : sur Mac, Ctrl → ⌃, Alt → ⌥, Shift → ⇧, Win → ⌘ (le format enregistré ne change pas). */
+export function hotkeyLabel(hotkey: string, mac: boolean = IS_MAC): string {
+  if (!mac) return hotkey;
+  const symbols: Record<string, string> = { ctrl: '⌃', alt: '⌥', shift: '⇧', win: '⌘' };
+  return hotkey
+    .split('+')
+    .map((part) => symbols[part.trim().toLowerCase()] ?? part)
+    .join('');
+}
+
 export function t(lang: Lang, key: Key, vars: Record<string, string> = {}): string {
-  const text = dictionaries[lang][key] ?? key;
+  const text = (IS_MAC ? macTexts[lang][key] : undefined) ?? dictionaries[lang][key] ?? key;
   return text.replace(/\{(\w+)\}/g, (_, k: string) => vars[k] ?? `{${k}}`);
 }

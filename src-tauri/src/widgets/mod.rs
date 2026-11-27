@@ -9,6 +9,8 @@
 //! La fenêtre n'est jamais activée par le launcher (voir `native`).
 
 pub mod commands;
+#[cfg_attr(windows, path = "native_win.rs")]
+#[cfg_attr(target_os = "macos", path = "native_mac.rs")]
 pub(crate) mod native;
 mod follow;
 mod recall;
@@ -26,7 +28,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::webview::{DownloadEvent, NewWindowResponse, WebviewBuilder};
+use tauri::webview::{DownloadEvent, NewWindowResponse, PermissionResponse, WebviewBuilder};
 use tauri::window::{Color, WindowBuilder};
 use tauri::{AppHandle, Emitter, EventTarget, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl, Window, WindowEvent};
 use tauri_plugin_opener::OpenerExt;
@@ -172,15 +174,15 @@ impl Widgets {
         }
     }
 
-    fn hwnd_of(&self, id: &str) -> Option<windows::Win32::Foundation::HWND> {
+    fn hwnd_of(&self, id: &str) -> Option<native::HWND> {
         let live = self.live.lock().ok()?;
-        live.get(id).map(|l| windows::Win32::Foundation::HWND(l.hwnd as _))
+        live.get(id).map(|l| native::HWND(l.hwnd as _))
     }
 
-    fn live_hwnds(&self) -> Vec<(String, windows::Win32::Foundation::HWND)> {
+    fn live_hwnds(&self) -> Vec<(String, native::HWND)> {
         self.live
             .lock()
-            .map(|l| l.iter().map(|(id, w)| (id.clone(), windows::Win32::Foundation::HWND(w.hwnd as _))).collect())
+            .map(|l| l.iter().map(|(id, w)| (id.clone(), native::HWND(w.hwnd as _))).collect())
             .unwrap_or_default()
     }
 
@@ -397,7 +399,7 @@ impl Widgets {
         let hwnd_raw = hwnd.0 as isize;
         // Sous-classement et style : sur le fil qui possède la fenêtre.
         app.run_on_main_thread(move || {
-            let hwnd = windows::Win32::Foundation::HWND(hwnd_raw as _);
+            let hwnd = native::HWND(hwnd_raw as _);
             native::install_subclass(hwnd);
             if collapsed {
                 native::set_fixed_size(hwnd, PILL_SIZE.0, PILL_SIZE.1);
@@ -451,6 +453,9 @@ impl Widgets {
                 open_outside(&app_new, &last_external, &u, &id_new);
                 NewWindowResponse::Deny
             })
+            // Micro, caméra, position, notifications… : toujours refusés (en plus du refus
+            // posé par `native::deny_permissions_then_open` sous Windows).
+            .on_permission_request(|_webview, _kind| PermissionResponse::Deny)
             .on_download(move |_webview, event| {
                 if let DownloadEvent::Requested { url, .. } = event {
                     log::warn!("Widget {id_dl} : téléchargement refusé ({})", domains::short(&url));
@@ -470,7 +475,7 @@ impl Widgets {
             st.collapsed = false;
         }
         if let Some(l) = removed {
-            native::forget_size_rules(windows::Win32::Foundation::HWND(l.hwnd as _));
+            native::forget_size_rules(native::HWND(l.hwnd as _));
         }
         if let Some(w) = app.get_window(&window_label(id)) {
             let _ = w.destroy();

@@ -29,7 +29,15 @@ pub fn status_of(entry: Option<&UninstallEntry>, catalog_version: Option<&str>) 
 }
 
 /// Entrée du registre correspondant à un outil du catalogue.
+/// Mac : par l'identifiant d'application de l'outil, sinon par le nom affiché.
 pub fn entry_for<'a>(entries: &'a [UninstallEntry], tool: &Tool) -> Option<&'a UninstallEntry> {
+    if cfg!(target_os = "macos") {
+        let key = super::mac::bundle_id_for(&tool.id).map(super::mac::key_for);
+        if let Some(e) = key.and_then(|k| entries.iter().find(|e| e.key == k)) {
+            return Some(e);
+        }
+        return registry::find(entries, None, &tool.name);
+    }
     let app_id = known_apps::find(&tool.id).map(|a| a.app_id);
     registry::find(entries, app_id, &tool.name)
 }

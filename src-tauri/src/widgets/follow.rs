@@ -6,7 +6,7 @@ use super::{native, Widgets};
 use bworkshop_core::dofus_tracker::{self, SNAP_DISTANCE};
 use bworkshop_core::geometry::Rect;
 use std::sync::atomic::Ordering;
-use windows::Win32::Foundation::HWND;
+use super::native::HWND;
 
 impl Widgets {
     /// Widgets ouverts et barre d'outils.

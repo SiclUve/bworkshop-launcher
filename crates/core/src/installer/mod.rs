@@ -7,6 +7,7 @@ pub mod inno;
 pub mod kind;
 pub mod known_apps;
 pub mod launch;
+pub mod mac;
 pub mod nsis;
 pub mod registry;
 pub mod runner;

@@ -1,8 +1,8 @@
 # Vérifications des dépendances par cargo-deny (lancées par le workflow « Construire une version »).
-# Seule la cible publiée compte : Windows x64.
+# Cibles publiées : Windows x64 et Mac (Apple Silicon et Intel).
 
 [graph]
-targets = ["x86_64-pc-windows-msvc"]
+targets = ["x86_64-pc-windows-msvc", "aarch64-apple-darwin", "x86_64-apple-darwin"]
 
 [advisories]
 version = 2

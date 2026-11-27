@@ -11,7 +11,7 @@ use bworkshop_core::geometry::{self, Placement, Rect};
 use bworkshop_core::widgets_store::{clamp_tile, OpenMode};
 use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
-use windows::Win32::Foundation::HWND;
+use super::native::HWND;
 
 pub const LABEL: &str = "toolbar";
 /// Clé de la barre dans la liste des éléments déplacés (« : » est interdit dans un identifiant d'outil).
@@ -100,11 +100,11 @@ impl Widgets {
             .background_color(BACKGROUND)
             .build()
             .map_err(|e| format!("Barre d'outils non créée : {e}"))?;
-        let hwnd = match window.hwnd() {
-            Ok(h) => h,
-            Err(e) => {
+        let hwnd = match native::hwnd(&window.as_ref().window()) {
+            Some(h) => h,
+            None => {
                 let _ = window.destroy();
-                return Err(format!("Barre d'outils introuvable : {e}"));
+                return Err("Barre d'outils introuvable.".into());
             }
         };
         let raw = hwnd.0 as isize;

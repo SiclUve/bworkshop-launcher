@@ -20,3 +20,4 @@ src-tauri/gen/
 .vscode/
 .claude/
 CLAUDE.local.md
+target-mac/

@@ -8,7 +8,7 @@ use bworkshop_core::layouts::{from_relative, to_relative, touches, Layout, Layou
 use bworkshop_core::widgets_store::DEFAULT_WIDGET;
 use std::collections::BTreeSet;
 use tauri::{AppHandle, Manager};
-use windows::Win32::Foundation::HWND;
+use super::native::HWND;
 
 /// Place d'une fenêtre : sur l'écran, et par rapport à Dofus si elle le touche.
 fn place_of(rect: Rect, dofus: Option<Rect>, monitors: &[bworkshop_core::geometry::MonitorInfo]) -> Place {

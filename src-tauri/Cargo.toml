@@ -28,3 +28,11 @@ tauri-plugin-updater = "2"
 # Mêmes versions que celles de Tauri (pas de doublon).
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_UI_HiDpi", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_Security", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Accessibility", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_System_Registry"] }
 webview2-com = "0.39"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Mêmes versions que celles de Tauri (Tao, Wry) : appels AppKit sur les fenêtres du launcher
+# et lecture de la liste des fenêtres (suivi de Dofus).
+objc2 = "0.6"
+libc = "0.2"
+# Raccourcis clavier globaux (API Carbon `RegisterEventHotKey`, sans autorisation spéciale).
+global-hotkey = "0.7"

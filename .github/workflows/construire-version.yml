@@ -1,10 +1,15 @@
-# Construit et signe l'installateur du launcher sur une machine Windows de GitHub,
-# puis crée une release en BROUILLON dans SiclUve/bworkshop-releases.
+# Construit et signe le launcher sur des machines Windows et Mac de GitHub,
+# puis crée UNE release en BROUILLON dans SiclUve/bworkshop-releases (installateur Windows,
+# image disque Mac, et un latest.json commun aux deux).
 # Rien n'est visible des joueurs tant que le brouillon n'est pas publié à la main,
 # puis annoncé avec le workflow « Annoncer la mise à jour ».
 #
 # Avant : changer la version dans src-tauri/tauri.conf.json, package.json, Cargo.toml
 # (racine) et Cargo.lock, puis pousser.
+#
+# Mac : application universelle (Apple Silicon + Intel), signée « ad hoc » (sans compte
+# développeur Apple). Au premier lancement : clic droit > Ouvrir. Les mises à jour suivantes
+# passent par le launcher lui-même (signées avec la même clé que sous Windows).
 #
 # Secrets du dépôt :
 #  - TAURI_SIGNING_PRIVATE_KEY : contenu de la clé privée de mise à jour ;
@@ -34,27 +39,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  construire:
-    runs-on: windows-latest
-    timeout-minutes: 60
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Vérifier la version
         id: v
-        shell: pwsh
         run: |
-          $v = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
-          $pkg = (Get-Content package.json -Raw | ConvertFrom-Json).version
-          $cargo = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-          if ($pkg -ne $v -or $cargo -ne $v) {
-            throw "Versions différentes : tauri.conf.json $v, package.json $pkg, Cargo.toml $cargo"
-          }
-          if ('${{ inputs.essai }}' -ne 'true' -and (git ls-remote --tags origin "refs/tags/v$v")) {
-            throw "Le tag v$v existe déjà : change la version avant de construire."
-          }
-          "version=$v" >> $env:GITHUB_OUTPUT
-          Write-Host "Version $v"
+          set -euo pipefail
+          v=$(jq -r .version src-tauri/tauri.conf.json)
+          pkg=$(jq -r .version package.json)
+          cargo=$(sed -nE 's/^version = "(.+)"/\1/p' Cargo.toml | head -1)
+          if [ "$pkg" != "$v" ] || [ "$cargo" != "$v" ]; then
+            echo "Versions différentes : tauri.conf.json $v, package.json $pkg, Cargo.toml $cargo"; exit 1
+          fi
+          if [ "${{ inputs.essai }}" != "true" ] && [ -n "$(git ls-remote --tags origin "refs/tags/v$v")" ]; then
+            echo "Le tag v$v existe déjà : change la version avant de construire."; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version $v"
+
+  windows:
+    needs: verifier
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -145,69 +159,187 @@ jobs:
           if ($found) { throw 'Chemins de construction trouvés dans les fichiers publiés.' }
           Write-Host "Aucun chemin de construction dans $($files.Count) fichier(s)."
 
-      - name: Préparer les fichiers de la release
+      - name: Rassembler les fichiers Windows
         id: files
         shell: pwsh
-        env:
-          NOTES: ${{ inputs.notes }}
         run: |
-          $v = '${{ steps.v.outputs.version }}'
-          $tag = "Launcher$v"
+          $v = '${{ needs.verifier.outputs.version }}'
           $setup = Get-ChildItem target/release/bundle/nsis -Filter "*_${v}_*-setup.exe" | Select-Object -First 1
           if (-not $setup) { throw 'Installateur introuvable.' }
           # Nom sans espace : celui que GitHub publie.
           $name = $setup.Name -replace ' ', '.'
-          $out = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'release')
+          $out = New-Item -ItemType Directory -Force (Join-Path $env:RUNNER_TEMP 'windows')
           Copy-Item $setup.FullName (Join-Path $out $name)
           Copy-Item "$($setup.FullName).sig" (Join-Path $out "$name.sig")
-          $utf8 = New-Object Text.UTF8Encoding $false
-          $hash = (Get-FileHash (Join-Path $out $name) -Algorithm SHA256).Hash.ToLower()
-          [IO.File]::WriteAllText((Join-Path $out "$name.sha256"), "$hash  $name`n", $utf8)
-          $download = "https://github.com/SiclUve/bworkshop-releases/releases/download/$tag/$name"
-          $latest = [ordered]@{
-            version   = $v
-            notes     = $env:NOTES
-            pub_date  = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
-            platforms = [ordered]@{
-              'windows-x86_64' = [ordered]@{
-                signature = (Get-Content "$($setup.FullName).sig" -Raw).Trim()
-                url       = $download
-              }
-            }
-          }
-          [IO.File]::WriteAllText((Join-Path $out 'latest.json'), ($latest | ConvertTo-Json -Depth 5), $utf8)
-          $body = @"
-          ## Bworkshop Launcher $v
-
-          $env:NOTES
-
-          **Télécharger :** [$name]($download)
-
-          **SHA-256 :** ``$hash``
-
-          Vérifier le fichier téléchargé (PowerShell) :
-
-          ``````powershell
-          Get-FileHash "`$env:USERPROFILE\Downloads\$name" -Algorithm SHA256
-          ``````
-
-          Construit par GitHub Actions depuis le commit [$($env:GITHUB_SHA.Substring(0,7))](https://github.com/$env:GITHUB_REPOSITORY/commit/$env:GITHUB_SHA) ([journal de construction]($env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID)). Provenance vérifiable : ``gh attestation verify $name -R $env:GITHUB_REPOSITORY``
-
-          Windows 10 et 11 · installation sans droits administrateur · code source : https://github.com/SiclUve/bworkshop-launcher
-
-          L'installateur n'a pas de certificat de signature de code : Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur « Informations complémentaires » puis « Exécuter quand même ».
-          "@
-          [IO.File]::WriteAllText((Join-Path $env:RUNNER_TEMP 'release-notes.md'), $body, $utf8)
           "dir=$out" >> $env:GITHUB_OUTPUT
-          "name=$name" >> $env:GITHUB_OUTPUT
-          Write-Host "Installateur : $name"
-          Write-Host "SHA-256      : $hash"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: windows
+          path: ${{ steps.files.outputs.dir }}
+          retention-days: 7
+
+  mac:
+    needs: verifier
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Rust stable (Apple Silicon et Intel)
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-mac-${{ hashFiles('Cargo.lock') }}
+
+      - name: Dépendances
+        run: npm ci
+
+      - name: Tests
+        run: |
+          cargo test --workspace --locked
+          npm run check
+
+      - name: Construire et signer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Signature « ad hoc » : pas de compte développeur Apple.
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          set -euo pipefail
+          [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || { echo "Secret TAURI_SIGNING_PRIVATE_KEY absent."; exit 1; }
+          # Chemins de la machine de construction réécrits dans l'exécutable.
+          export CARGO_ENCODED_RUSTFLAGS="--remap-path-prefix=$HOME=~"$'\x1f'"--remap-path-prefix=$PWD=."
+          extra="$RUNNER_TEMP/updater.json"
+          jq -n --arg key "$(tr -d '\r\n' < src-tauri/updater-key.pub)" \
+            '{build: {beforeBuildCommand: ""}, bundle: {createUpdaterArtifacts: true}, plugins: {updater: {pubkey: $key}}}' > "$extra"
+          npm run build
+          npm run tauri -- build --target universal-apple-darwin --config "$extra" -- --locked
+
+      - name: Vérifier l'application
+        run: |
+          set -euo pipefail
+          app=$(find target/universal-apple-darwin/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          lipo -archs "$app/Contents/MacOS/bworkshop-launcher" | tee /dev/stderr | grep -q arm64
+          lipo -archs "$app/Contents/MacOS/bworkshop-launcher" | grep -q x86_64
+          codesign --verify --deep --strict "$app"
+          # Aucun chemin du compte de construction dans l'exécutable.
+          if strings -a "$app/Contents/MacOS/bworkshop-launcher" | grep -F "$HOME/" ; then
+            echo "Chemins de construction trouvés dans l'exécutable."; exit 1
+          fi
+
+      - name: Rassembler les fichiers Mac
+        id: files
+        run: |
+          set -euo pipefail
+          v='${{ needs.verifier.outputs.version }}'
+          bundle=target/universal-apple-darwin/release/bundle
+          out="$RUNNER_TEMP/mac"; mkdir -p "$out"
+          dmg=$(find "$bundle/dmg" -maxdepth 1 -name "*_${v}_universal.dmg" | head -1)
+          tgz=$(find "$bundle/macos" -maxdepth 1 -name '*.app.tar.gz' | head -1)
+          [ -n "$dmg" ] && [ -n "$tgz" ] || { echo "Fichiers Mac introuvables."; exit 1; }
+          cp "$dmg" "$out/Bworkshop.Launcher_${v}_universal.dmg"
+          cp "$tgz" "$out/Bworkshop.Launcher_${v}_universal.app.tar.gz"
+          cp "$tgz.sig" "$out/Bworkshop.Launcher_${v}_universal.app.tar.gz.sig"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mac
+          path: ${{ steps.files.outputs.dir }}
+          retention-days: 7
+
+  publier:
+    needs: [verifier, windows, mac]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/in
+
+      - name: Préparer les fichiers de la release
+        id: files
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          v='${{ needs.verifier.outputs.version }}'
+          tag="Launcher$v"
+          base="https://github.com/SiclUve/bworkshop-releases/releases/download/$tag"
+          out="$RUNNER_TEMP/release"; mkdir -p "$out"
+          cp "$RUNNER_TEMP"/in/windows/* "$RUNNER_TEMP"/in/mac/* "$out/"
+          cd "$out"
+          setup=$(ls *-setup.exe | head -1)
+          dmg="Bworkshop.Launcher_${v}_universal.dmg"
+          tgz="Bworkshop.Launcher_${v}_universal.app.tar.gz"
+          for f in "$setup" "$dmg"; do sha256sum "$f" > "$f.sha256"; done
+          win_hash=$(cut -d' ' -f1 "$setup.sha256")
+          mac_hash=$(cut -d' ' -f1 "$dmg.sha256")
+          # Mises à jour : installateur Windows ; archive de l'application pour les deux sortes de Mac.
+          jq -n --arg v "$v" --arg notes "$NOTES" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg wsig "$(tr -d '\r\n' < "$setup.sig")" --arg wurl "$base/$setup" \
+            --arg msig "$(tr -d '\r\n' < "$tgz.sig")" --arg murl "$base/$tgz" \
+            '{version: $v, notes: $notes, pub_date: $date, platforms: {
+                "windows-x86_64": {signature: $wsig, url: $wurl},
+                "darwin-aarch64": {signature: $msig, url: $murl},
+                "darwin-x86_64": {signature: $msig, url: $murl}}}' > latest.json
+          short=${GITHUB_SHA:0:7}
+          {
+            echo "## Bworkshop Launcher $v"
+            echo
+            echo "$NOTES"
+            echo
+            echo "**Windows :** [$setup]($base/$setup)  "
+            echo "SHA-256 : \`$win_hash\`"
+            echo
+            echo "**Mac (Apple Silicon et Intel) :** [$dmg]($base/$dmg)  "
+            echo "SHA-256 : \`$mac_hash\`"
+            echo
+            echo "Vérifier le fichier téléchargé :"
+            echo
+            echo '```powershell'
+            echo "Get-FileHash \"\$env:USERPROFILE\\Downloads\\$setup\" -Algorithm SHA256"
+            echo '```'
+            echo
+            echo '```sh'
+            echo "shasum -a 256 ~/Downloads/$dmg"
+            echo '```'
+            echo
+            echo "Construit par GitHub Actions depuis le commit [$short](https://github.com/$GITHUB_REPOSITORY/commit/$GITHUB_SHA) ([journal de construction]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)). Provenance vérifiable : \`gh attestation verify <fichier> -R $GITHUB_REPOSITORY\`"
+            echo
+            echo "Windows 10 et 11 · installation sans droits administrateur · macOS 11 ou plus récent · code source : https://github.com/SiclUve/bworkshop-launcher"
+            echo
+            echo "Windows : l'installateur n'a pas de certificat de signature de code, Windows SmartScreen peut afficher « Windows a protégé votre ordinateur ». Clique sur « Informations complémentaires » puis « Exécuter quand même »."
+            echo
+            echo "Mac : l'application n'est pas signée par un compte développeur Apple. Glisse-la dans Applications, puis au premier lancement fais clic droit > Ouvrir > Ouvrir (ou Réglages Système > Confidentialité et sécurité > Ouvrir quand même)."
+          } > "$RUNNER_TEMP/release-notes.md"
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          echo "setup=$setup" >> "$GITHUB_OUTPUT"
+          echo "dmg=$dmg" >> "$GITHUB_OUTPUT"
+          ls -l
 
       - name: Fichiers de l'essai
         if: ${{ inputs.essai }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: essai-launcher-${{ steps.v.outputs.version }}
+          name: essai-launcher-${{ needs.verifier.outputs.version }}
           path: ${{ steps.files.outputs.dir }}
           retention-days: 7
 
@@ -215,23 +347,21 @@ jobs:
         if: ${{ !inputs.essai }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: ${{ steps.files.outputs.dir }}/${{ steps.files.outputs.name }}
+          subject-path: |
+            ${{ steps.files.outputs.dir }}/${{ steps.files.outputs.setup }}
+            ${{ steps.files.outputs.dir }}/${{ steps.files.outputs.dmg }}
 
       - name: Release en brouillon et tag
         if: ${{ !inputs.essai }}
-        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
-          if (-not $env:GH_TOKEN) { throw 'Secret RELEASES_TOKEN absent.' }
-          $v = '${{ steps.v.outputs.version }}'
-          $dir = '${{ steps.files.outputs.dir }}'
-          $files = Get-ChildItem $dir | ForEach-Object { $_.FullName }
-          gh release create "Launcher$v" @files --repo SiclUve/bworkshop-releases --draft `
-            --title "Bworkshop Launcher $v" --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md')
-          if ($LASTEXITCODE -ne 0) { throw 'Création de la release impossible.' }
+          set -euo pipefail
+          [ -n "${GH_TOKEN:-}" ] || { echo "Secret RELEASES_TOKEN absent."; exit 1; }
+          v='${{ needs.verifier.outputs.version }}'
+          gh release create "Launcher$v" "${{ steps.files.outputs.dir }}"/* --repo SiclUve/bworkshop-releases --draft \
+            --title "Bworkshop Launcher $v" --notes-file "$RUNNER_TEMP/release-notes.md"
           # Le tag relie la version publiée au code exact qui l'a produite.
-          git tag "v$v" $env:GITHUB_SHA
+          git tag "v$v" "$GITHUB_SHA"
           git push origin "v$v"
-          if ($LASTEXITCODE -ne 0) { throw "Tag v$v impossible à pousser." }
-          Write-Host "Brouillon prêt : https://github.com/SiclUve/bworkshop-releases/releases"
+          echo "Brouillon prêt : https://github.com/SiclUve/bworkshop-releases/releases"

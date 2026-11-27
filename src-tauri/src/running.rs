@@ -20,6 +20,7 @@
 
 use serde::Serialize;
 use std::collections::BTreeMap;
+#[cfg(windows)]
 use std::os::windows::io::AsRawHandle;
 use std::process::Child;
 use std::sync::Mutex;
@@ -174,7 +175,11 @@ fn watch_ready(app: AppHandle, id: String, pid: u32) {
 /// Refusé si l'outil tourne déjà : l'entrée existante (et son groupe) ne doit pas être perdue.
 pub fn track(app: &AppHandle, id: &str, mut child: Child) -> Result<(), String> {
     let pid = child.id();
+    #[cfg(windows)]
     let handle = child.as_raw_handle() as isize;
+    // Mac : le numéro du processus, chef de son propre groupe (voir `launch::launch_suspended`).
+    #[cfg(not(windows))]
+    let handle = pid as isize;
     {
         let running = app.state::<Running>();
         let Ok(mut p) = running.entries.lock() else {
@@ -272,6 +277,7 @@ pub fn force_close(app: &AppHandle, id: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(windows)]
 mod native {
     use windows::core::BOOL;
     use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
@@ -438,5 +444,57 @@ mod native {
     pub fn terminate_job(job: &Job) -> windows::core::Result<()> {
         use windows::Win32::System::JobObjects::TerminateJobObject;
         unsafe { TerminateJobObject(job.0, 1) }
+    }
+}
+/// Mac : même rôle que la version Windows.
+/// - « groupe » = groupe de processus Unix créé au lancement (`setpgid`), dont l'outil est le chef ;
+/// - fermeture polie = `NSRunningApplication.terminate` (comme ⌘Q), application par application ;
+/// - jeu ou Ankama Launcher reconnus par le **nom du processus** (le titre des fenêtres demande
+///   une autorisation que le launcher ne réclame pas) ;
+/// - arrêt forcé = `SIGKILL` au groupe, ou au seul processus lancé.
+#[cfg(target_os = "macos")]
+mod native {
+    use crate::mac_sys;
+
+    pub fn close_windows_of(pids: &[u32]) -> u32 {
+        pids.iter().filter(|&&p| mac_sys::terminate_app(p)).count() as u32
+    }
+
+    pub fn has_window(pids: &[u32]) -> bool {
+        mac_sys::windows_on_screen().iter().any(|w| w.layer == 0 && w.w > 1.0 && w.h > 1.0 && pids.contains(&w.pid))
+    }
+
+    pub fn game_pids(pids: &[u32], is_game: &dyn Fn(&str) -> bool) -> Vec<u32> {
+        pids.iter().copied().filter(|&p| mac_sys::process_name(p).is_some_and(|n| is_game(&n))).collect()
+    }
+
+    pub fn terminate(handle: isize) -> Result<(), String> {
+        let pid = handle as i32;
+        if pid <= 0 {
+            return Err("processus invalide".into());
+        }
+        if unsafe { libc::kill(pid, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error().to_string()) }
+    }
+
+    /// Groupe de processus (numéro du chef).
+    pub struct Job(i32);
+
+    pub fn job_for(process: isize) -> Option<Job> {
+        let pid = process as i32;
+        // Le processus doit bien être chef de son groupe (lancé avec `process_group(0)`).
+        (pid > 0 && unsafe { libc::getpgid(pid) } == pid).then_some(Job(pid))
+    }
+
+    pub fn job_pids(job: &Job) -> Vec<u32> {
+        mac_sys::group_pids(job.0 as u32)
+    }
+
+    /// Rien à reprendre : sur Mac, le processus n'est pas démarré suspendu.
+    pub fn resume(_pid: u32) -> bool {
+        true
+    }
+
+    pub fn terminate_job(job: &Job) -> Result<(), String> {
+        if unsafe { libc::killpg(job.0, libc::SIGKILL) } == 0 { Ok(()) } else { Err(std::io::Error::last_os_error().to_string()) }
     }
 }

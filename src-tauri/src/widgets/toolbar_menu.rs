@@ -194,7 +194,7 @@ fn confirm_uninstall(app: &AppHandle, id: &str) {
             Language::Fr => format!("Désinstaller {name} ?"),
             Language::En => format!("Uninstall {name}?"),
         };
-        if !native_confirm(tr(lang, "Bworkshop Launcher", "Bworkshop Launcher"), &text) {
+        if !native_confirm(tr(lang, "Bworkshop Launcher", "Bworkshop Launcher"), &text, lang) {
             return;
         }
         match installer_bridge::uninstall(&app, &id) {
@@ -204,11 +204,32 @@ fn confirm_uninstall(app: &AppHandle, id: &str) {
     });
 }
 
-fn native_confirm(title: &str, text: &str) -> bool {
+#[cfg(windows)]
+fn native_confirm(title: &str, text: &str, _lang: Language) -> bool {
     use windows::core::HSTRING;
     use windows::Win32::UI::WindowsAndMessaging::{
         MessageBoxW, IDYES, MB_DEFBUTTON2, MB_ICONQUESTION, MB_SETFOREGROUND, MB_TOPMOST, MB_YESNO,
     };
     let style = MB_YESNO | MB_ICONQUESTION | MB_DEFBUTTON2 | MB_TOPMOST | MB_SETFOREGROUND;
     unsafe { MessageBoxW(None, &HSTRING::from(text), &HSTRING::from(title), style) == IDYES }
+}
+
+/// Mac : boîte de dialogue du système (`osascript`), « Non » par défaut.
+#[cfg(target_os = "macos")]
+fn native_confirm(title: &str, text: &str, lang: Language) -> bool {
+    let quote = |s: &str| format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""));
+    let (no, yes) = (tr(lang, "Non", "No"), tr(lang, "Oui", "Yes"));
+    let script = format!(
+        "display dialog {} with title {} buttons {{{}, {}}} default button {} cancel button {} with icon caution",
+        quote(text),
+        quote(title),
+        quote(no),
+        quote(yes),
+        quote(no),
+        quote(no)
+    );
+    std::process::Command::new("/usr/bin/osascript")
+        .args(["-e", &script])
+        .output()
+        .is_ok_and(|o| o.status.success() && String::from_utf8_lossy(&o.stdout).contains(yes))
 }
