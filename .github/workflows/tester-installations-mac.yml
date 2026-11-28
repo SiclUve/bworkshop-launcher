@@ -1,0 +1,49 @@
+# Vérifie sur de vrais Mac de GitHub (puce Apple et Intel) que le launcher sait installer
+# chaque outil Mac du catalogue du site : téléchargement vérifié, installation du .dmg,
+# outil reconnu à la bonne version, démarrage, désinstallation. Même code que le launcher
+# (crates/core/tests/mac_installations_reelles.rs). Ne publie rien.
+#
+# Lancé chaque lundi, et à la main (onglet Actions) après une nouvelle version d'un outil.
+
+name: Tester les installations Mac
+
+on:
+  workflow_dispatch:
+    inputs:
+      outils:
+        description: "Identifiants à tester, séparés par des virgules (vide : tous)"
+        required: false
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    strategy:
+      fail-fast: false
+      matrix:
+        mac: [macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.mac }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-test-mac-${{ matrix.mac }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Installer chaque outil Mac du catalogue
+        env:
+          BW_OUTILS: ${{ inputs.outils }}
+        run: cargo test -p bworkshop-core --locked --test mac_installations_reelles -- --ignored --nocapture
